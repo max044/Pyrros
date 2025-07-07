@@ -1,0 +1,7 @@
+[project]
+name = "pyrros"
+version = "0.1.0"
+description = "Modular and efficient training recipes for LLMs (GRPO, DPO, etc.)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
