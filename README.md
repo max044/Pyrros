@@ -21,7 +21,6 @@ It combines:
 ## 🛠️ Installation
 
 ```bash
-git clone https://github.com/max044/pyrros.git
-cd pyrros
-# optional: setup venv
-pip install -r requirements.txt
+git clone https://github.com/max044/Pyrros.git
+cd Pyrros
+uv sync

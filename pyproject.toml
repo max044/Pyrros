@@ -3,5 +3,25 @@ name = "pyrros"
 version = "0.1.0"
 description = "Modular and efficient training recipes for LLMs (GRPO, DPO, etc.)"
 readme = "README.md"
-requires-python = ">=3.9"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "composer>=0.31.0",
+    "datasets>=3.6.0",
+    "peft>=0.16.0",
+    "pytest>=8.4.1",
+    "torch==2.7.0",
+    "transformers>=4.53.1",
+]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+# -> on inclut uniquement le package 'pyrros' et ses sous-packages
+include = ["pyrros*"]
+# -> on exclut 'recipes' qui contient des scripts, pas du code importable
+exclude = ["recipes*"]
+
+[project.optional-dependencies]
+dev = ["pytest", "peft", "bitsandbytes"]
