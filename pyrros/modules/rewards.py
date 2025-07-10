@@ -8,6 +8,7 @@ For MVP we provide:
 from __future__ import annotations
 
 from typing import Sequence, Callable, List
+import torch
 
 __all__ = [
     "length_bonus",
@@ -25,5 +26,5 @@ def keyword_match(responses: Sequence[str], keyword: str) -> List[float]:
     return [1.0 if kw_lower in r.lower() else 0.0 for r in responses]
 
 
-def no_reward(responses: Sequence[str]) -> List[float]:
-    return [0.0 for _ in responses]
+def no_reward(responses: Sequence[str]) -> torch.Tensor:
+    return torch.zeros(len(responses))
