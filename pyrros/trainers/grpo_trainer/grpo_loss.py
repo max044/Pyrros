@@ -1,48 +1,48 @@
+from __future__ import annotations
 from composer.core import Algorithm, Event
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
+from torch.distributions.kl import kl_divergence
 
 class GRPOLossAlgorithm(Algorithm):
-    def __init__(self, beta: float = 0.1, kl_target: float = 0.05):
+    def __init__(
+        self,
+        reference_model,        # π_ref (gelé)  ➜ à passer depuis la recipe
+        eps: float = 0.2,       # clip ε
+        beta: float = 0.01,     # poids KL
+    ):
+        self.reference = reference_model.eval().requires_grad_(False)
+        self.eps = eps
         self.beta = beta
-        self.kl_target = kl_target
 
     def match(self, event, state):
-        return event == Event.BEFORE_LOSS               # se déclenche une fois / batch
+        return event == Event.BEFORE_LOSS
 
     def apply(self, event, state, logger):
-        print("state: ", state)
-        outputs = state.outputs
-        if torch.is_tensor(outputs):               # cas rare : déjà un Tensor
-            logits = outputs
-        elif hasattr(outputs, "logits"):           # cas HF return_dict=True
-            logits = outputs.logits
-        elif isinstance(outputs, (tuple, list)):   # return_dict=False → tuple
-            logits = outputs[0]                    # logits en première position
-        else:
-            raise TypeError(f"Unexpected output type: {type(outputs)}")
+        # ---- sorties sous π_θ (policy current) ----------------------------
+        logits = state.outputs.logits if hasattr(state.outputs, "logits") else state.outputs[0]  # [B*G, L, V]
+        logp_new = F.log_softmax(logits, dim=-1)                           # idem
 
-        labels = state.batch["labels"]                  # [B, L]
-        rewards = state.batch["rewards"]                # [B]
+        # ---- infos “old” préparées par le callback ------------------------
+        logp_old = state.batch["logp_old"]                                 # [B*G, L]
+        adv      = state.batch["advantages"]                               # [B*G, L]
+        labels   = state.batch["labels"]                                   # [B*G, L]
 
-        # log-prob des actions
-        logp = -F.cross_entropy(
-            logits.view(-1, logits.size(-1)),
-            labels.view(-1),
-            reduction="none",
-        ).view(labels.size())
+        # gather log-probs pour les tokens choisis
+        logp_new_tokens = logp_new.gather(2, labels.unsqueeze(-1)).squeeze(-1)  # [B*G, L]
 
-        # moyenne sur la séquence -> [B]
-        logp = logp.mean(1)
+        # ---- ratio + clipping --------------------------------------------
+        ratio = torch.exp(logp_new_tokens - logp_old)                      # [B*G, L]
+        ratio_clipped = torch.clamp(ratio, 1.0 - self.eps, 1.0 + self.eps)
+        policy_loss = -(torch.minimum(ratio * adv, ratio_clipped * adv)).mean()
 
-        # KL vs. modèle de référence (option : passer en argu.)
-        kl = (logp.detach() - logp).mean()              # simplifié —> KL approx.
+        # ---- KL with reference (estimator Eq.4) ---------------------------
+        with torch.no_grad():
+            ref_logits = self.reference(labels)["logits"] if callable(self.reference) else \
+                         self.reference.model(labels)["logits"]             # [B*G, L, V]
+            logp_ref = F.log_softmax(ref_logits, dim=-1).gather(2, labels.unsqueeze(-1)).squeeze(-1)
 
-        # loss GRPO (négative pour maximiser le reward)
-        loss = -(rewards * logp).mean() + self.beta * kl
+        kl_est = (torch.exp(logp_ref - logp_new_tokens)           # π_ref / π_new
+                  - (logp_ref - logp_new_tokens) - 1.0).mean()
 
-        # ajustement automatique de beta si tu veux suivre kl_target
-        if self.kl_target is not None:
-            self.beta *= torch.exp(kl - self.kl_target)
-
-        state.loss = loss
+        state.loss = policy_loss + self.beta * kl_est

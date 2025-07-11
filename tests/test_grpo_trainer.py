@@ -63,10 +63,9 @@ def make_collate_fn(tokenizer, max_len: int = 32):
 
 
 # ---------- 3. Test PyTest ----------
-@pytest.mark.cpu
-def test_grpo_smoke():
+@pytest.mark.parametrize("device", ["cpu"])
+def test_grpo_smoke(device):
     """Boucle GRPO complète sur 1 batch (CPU / MPS, <30 s)."""
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
 
     # (a) Modèle aléatoire + vrai tokenizer
     model, tokenizer = load_model(
@@ -80,7 +79,7 @@ def test_grpo_smoke():
     fake_ds  = FakePromptDataset(length=4)
     train_dl = DataLoader(
         fake_ds,
-        batch_size=1,
+        batch_size=2,
         shuffle=False,
         collate_fn=make_collate_fn(tokenizer, max_len=32),
     )
@@ -89,9 +88,9 @@ def test_grpo_smoke():
     trainer = Trainer(
         model=model,
         train_dataloader=train_dl,
-        max_duration="1ba",
+        max_duration="2ba",
         algorithms=[GRPOLossAlgorithm(beta=0.1, kl_target=0.05)],
-        callbacks=[GRPOGenerationCallback(num_samples=1, reward_fn=no_reward)],
+        callbacks=[GRPOGenerationCallback(num_samples=2, reward_fn=no_reward)],
         precision="fp32",
         loggers=[],
         optimizers=optim.SGD(model.parameters(), lr=1e-3),

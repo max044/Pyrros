@@ -147,13 +147,18 @@ def main():
         loggers.append(TensorboardLogger(log_dir=args.output_dir))
 
     # 3.5  GRPO components
-    algo = GRPOLossAlgorithm(beta=0.1, kl_target=0.05)
+    reference = model.deepcopy().eval().requires_grad_(False)   # π_ref = π_θ (snapshot)
+    algo = GRPOLossAlgorithm(
+        reference_model=reference,
+        eps=0.2,
+        beta=0.01,
+    )
     gen_cb = GRPOGenerationCallback(
         num_samples=args.num_samples,
         max_new_tokens=args.max_new_tokens,
-        reward_fn=no_reward,  # ↩️  remplace par ton vrai reward modèle
+        reward_fn=no_reward,   # ← ton vrai modèle de reward
     )
-
+    
     # 3.6  Trainer
     trainer = Trainer(
         model=model,
