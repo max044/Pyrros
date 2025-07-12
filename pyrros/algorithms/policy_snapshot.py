@@ -8,7 +8,7 @@ class PolicySnapshot(Algorithm):
         # self._step = 0
 
     def match(self, event, state):
-        return event == Event.AFTER_TRAIN_BATCH
+        return event == Event.BATCH_START
 
     def apply(self, event, state, logger):
         for algo in state.algorithms:
