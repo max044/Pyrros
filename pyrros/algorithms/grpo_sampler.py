@@ -24,16 +24,6 @@ class GRPOSampler(Algorithm):
 
     def match(self, event, state):
         return event == Event.BEFORE_FORWARD
-    
-    def _sample_group(self, input_ids, attention_mask) -> tuple[torch.Tensor, torch.Tensor]:
-        old_log_probs = []
-        ref_log_probs = []
-
-        with torch.no_grad():
-            old_log_probs = self.old_model.compute_log_probs(input_ids, attention_mask)
-            ref_log_probs = self.ref_model.compute_log_probs(input_ids, attention_mask)
-
-        return old_log_probs, ref_log_probs
 
     def _compute_rewards(self, completions: List[str]) -> torch.Tensor:
         list_of_rewards = [reward_fn(completions) for reward_fn in self.reward_fns]
@@ -61,8 +51,13 @@ class GRPOSampler(Algorithm):
             temperature=0.6,
             max_length=128,
             pad_token_id=pad_token_id,
+            output_logits=True,
+            return_dict_in_generate=True,
         )
-        sequence_ids = self.old_model.generate(input_ids, generation_config=generation_config)
+        old_model_output = self.old_model.generate(input_ids, generation_config=generation_config)
+        
+        sequence_ids = old_model_output.sequences
+
         completions = self.tokenizer.batch_decode(
             sequence_ids[:, input_ids.shape[1] :], skip_special_tokens=True
         )
@@ -81,7 +76,15 @@ class GRPOSampler(Algorithm):
 
         # 3. compute log-probabilities
         attention_mask = sequence_ids != pad_token_id
-        logp_old, logp_ref = self._sample_group(sequence_ids, attention_mask)
+        with torch.no_grad():
+            logp_ref = self.ref_model.compute_log_probs(sequence_ids, attention_mask, gen_mask=completion_mask)
+        
+            logits = torch.stack(old_model_output.logits, dim=1)
+            # 2. log-probas π_old sur les tokens générés
+            logp_old = torch.log_softmax(logits, dim=-1)
+            gen_ids  = sequence_ids[:, -logits.size(1):]             # tokens générés
+            logp_old = logp_old.gather(-1, gen_ids.unsqueeze(-1)).squeeze(-1)  # (B, L_gen)
+
         
         state.batch = {
             "input_ids": input_ids,

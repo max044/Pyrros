@@ -9,6 +9,7 @@ from transformers import PreTrainedTokenizer
 
 # ───────── Pyrros imports ────────────────────────────────
 from pyrros.algorithms.grpo_sampler import GRPOSampler
+from pyrros.algorithms.policy_snapshot import PolicySnapshot
 from pyrros.modules.model import load_model
 from pyrros.modules.rewards import no_reward          # stub reward
 # ────────────────────────────────────────────────────────
@@ -85,6 +86,10 @@ def test_grpo_smoke(device: str):
         G=2,  # 2 samples per prompt
     )
 
+    policy_snapshot = PolicySnapshot(
+        sampler_algo=grpo_sampler
+    )
+
 
 
     # (d) Trainer Composer – 2 batches
@@ -92,7 +97,7 @@ def test_grpo_smoke(device: str):
         model=model,
         train_dataloader=dl,
         max_duration="1ba",
-        algorithms=[grpo_sampler],
+        algorithms=[grpo_sampler, policy_snapshot],
         device=device,
         precision="fp32",
         optimizers=optim.SGD(model.parameters(), lr=1e-3),
