@@ -78,8 +78,8 @@ def test_grpo_smoke(device: str):
 
     # (c) Algorithme
     grpo_sampler = GRPOSampler(
-        old_model=copy.deepcopy(model).eval().requires_grad_(False),
-        ref_model=copy.deepcopy(model).eval().requires_grad_(False),
+        old_model=copy.deepcopy(model).eval().requires_grad_(False).to(device),
+        ref_model=copy.deepcopy(model).eval().requires_grad_(False).to(device),
         tokenizer=tokenizer,
         reward_fns=[no_reward, no_reward],  # stub rewards
         G=2,  # 2 samples per prompt
@@ -93,6 +93,7 @@ def test_grpo_smoke(device: str):
         train_dataloader=dl,
         max_duration="1ba",
         algorithms=[grpo_sampler],
+        device=device,
         precision="fp32",
         optimizers=optim.SGD(model.parameters(), lr=1e-3),
         loggers=[],

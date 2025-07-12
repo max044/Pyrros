@@ -62,9 +62,7 @@ class GRPOSampler(Algorithm):
             max_length=128,
             pad_token_id=pad_token_id,
         )
-        input_ids = input_ids.to("mps")
         sequence_ids = self.old_model.generate(input_ids, generation_config=generation_config)
-        input_ids = input_ids.to("cpu")
         completions = self.tokenizer.batch_decode(
             sequence_ids[:, input_ids.shape[1] :], skip_special_tokens=True
         )
@@ -79,6 +77,7 @@ class GRPOSampler(Algorithm):
         # 2. compute rewards and advantages
         rewards = self._compute_rewards(completions)
         advantages = self._group_advantages(rewards)
+        advantages = advantages.to(input_ids.device)
 
         # 3. compute log-probabilities
         attention_mask = sequence_ids != pad_token_id
