@@ -21,6 +21,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
+import copy
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
@@ -30,10 +31,9 @@ from composer import Trainer
 from composer.loggers import WandBLogger, TensorboardLogger
 
 # ───── Pyrros core ────────────────────────────────────────────────
-from pyrros.trainers.grpo_trainer.grpo_loss import GRPOLossAlgorithm
-from pyrros.trainers.grpo_trainer.grpo_generation import GRPOGenerationCallback
 from pyrros.modules.model import load_model
 from pyrros.modules.rewards import no_reward
+from pyrros.models.grpo_model import GRPOModel
 # ──────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
@@ -122,6 +122,13 @@ def main():
         gradient_checkpointing=args.use_qlora,
     )
 
+    model = GRPOModel(
+        base_model=model,
+        ref_model=copy.deepcopy(model).eval().requires_grad_(False),  # frozen model
+        epsilon=0.2,
+        beta=0.02,
+    )
+
     # 3.2  Dataset & DataLoader
     dataset = JsonlPromptDataset(args.data_path)
     dl = DataLoader(
@@ -144,21 +151,9 @@ def main():
             )
         )
     if args.tensorboard:
-        loggers.append(TensorboardLogger(log_dir=args.output_dir))
+        loggers.append(TensorboardLogger(log_dir=args.output_dir))    
 
-    # 3.5  GRPO components
-    reference = model.deepcopy().eval().requires_grad_(False)   # π_ref = π_θ (snapshot)
-    algo = GRPOLossAlgorithm(
-        reference_model=reference,
-        eps=0.2,
-        beta=0.01,
-    )
-    gen_cb = GRPOGenerationCallback(
-        num_samples=args.num_samples,
-        max_new_tokens=args.max_new_tokens,
-        reward_fn=no_reward,   # ← ton vrai modèle de reward
-    )
-    
+
     # 3.6  Trainer
     trainer = Trainer(
         model=model,

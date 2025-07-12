@@ -1,73 +1,65 @@
-import random
 import string
 import pytest
 import torch
 from torch.utils.data import Dataset, DataLoader
-import torch.optim as optim
+from torch import optim
 from composer import Trainer
+import copy
+from transformers import PreTrainedTokenizer
 
-# ────────────────── Pyrros imports ──────────────────
-from pyrros.trainers.grpo_trainer.grpo_loss import GRPOLossAlgorithm
-from pyrros.trainers.grpo_trainer.grpo_generation import GRPOGenerationCallback
+# ───────── Pyrros imports ────────────────────────────────
+from pyrros.algorithms.grpo_sampler import GRPOSampler
 from pyrros.modules.model import load_model
-from pyrros.modules.rewards import no_reward
-# ─────────────────────────────────────────────────────
+from pyrros.modules.rewards import no_reward          # stub reward
+# ────────────────────────────────────────────────────────
 
 
-# ---------- 1. Dataset « prompt-only » ----------
+# ---------- 1. Dataset « prompt-only » -------------------
 class FakePromptDataset(Dataset):
-    """Génère des chaînes aléatoires type 'aaaa bb ccc'."""
     CHARS = string.ascii_lowercase + " "
 
     def __init__(self, length=4, min_tokens=5, max_tokens=12):
-        self.length = length
-        self.min_tokens = min_tokens
-        self.max_tokens = max_tokens
+        self.len = length
+        self.min, self.max = min_tokens, max_tokens
 
     def __len__(self):
-        return self.length
-
-    def _rand_prompt(self) -> str:
-        n = random.randint(self.min_tokens, self.max_tokens)
-        return "".join(random.choice(self.CHARS) for _ in range(n))
+        return self.len
 
     def __getitem__(self, idx):
-        return {"prompt": self._rand_prompt()}
+        prompt = f"n.{idx} J'aime le chocolat et toi ?"
+        return [{"role": "system", "content": "tu es un gentil assistant"}, {"role": "user", "content": prompt}]
 
 
-# ---------- 2. Collate utilisant le tokenizer HF ----------
-def make_collate_fn(tokenizer, max_len: int = 32):
-    """
-    Retourne une fonction collate qui :
-      • tokenise les prompts,
-      • tronque à `max_len`,
-      • pad à la longueur max du batch.
-    """
+# ---------- 2. Collate -----------------------------------
+def make_collate_fn(tokenizer: PreTrainedTokenizer, max_len: int = 32):
     def _collate(batch):
-        prompts = [b["prompt"] for b in batch]
-        enc = tokenizer(
-            prompts,
+
+        enc = tokenizer.apply_chat_template(
+            batch,
+            tokenize=True,
+            add_generation_prompt=True,
             padding="longest",
+            padding_side="left",
             truncation=True,
             max_length=max_len,
             return_tensors="pt",
+            return_attention_mask=True,
+            return_dict=True,
         )
-        # Pour un smoke-test, on peut prendre labels = input_ids
+
         return {
-            "input_ids": enc.input_ids,   # [B, L']
+            "input_ids": enc.input_ids,
             "labels":    enc.input_ids.clone(),
             "attention_mask": enc.attention_mask,
         }
-
     return _collate
 
 
-# ---------- 3. Test PyTest ----------
+# ---------- 3. Test --------------------------------------
 @pytest.mark.parametrize("device", ["cpu"])
-def test_grpo_smoke(device):
-    """Boucle GRPO complète sur 1 batch (CPU / MPS, <30 s)."""
-
-    # (a) Modèle aléatoire + vrai tokenizer
+def test_grpo_smoke(device: str):
+    """Boucle GRPO complète sur 2 batches, 100 % CPU."""
+    # (a) Policy courante π_θ + tokenizer  (wrapper Composer)
     model, tokenizer = load_model(
         "Qwen/Qwen1.5-0.5B",
         pretrained=False,
@@ -76,24 +68,34 @@ def test_grpo_smoke(device):
     )
 
     # (b) DataLoader factice
-    fake_ds  = FakePromptDataset(length=4)
-    train_dl = DataLoader(
-        fake_ds,
-        batch_size=2,
+    ds = FakePromptDataset(length=4)
+    dl = DataLoader(
+        ds,
+        batch_size=3,
         shuffle=False,
         collate_fn=make_collate_fn(tokenizer, max_len=32),
     )
 
-    # (c) Trainer Composer (1 batch)
-    trainer = Trainer(
-        model=model,
-        train_dataloader=train_dl,
-        max_duration="2ba",
-        algorithms=[GRPOLossAlgorithm(beta=0.1, kl_target=0.05)],
-        callbacks=[GRPOGenerationCallback(num_samples=2, reward_fn=no_reward)],
-        precision="fp32",
-        loggers=[],
-        optimizers=optim.SGD(model.parameters(), lr=1e-3),
+    # (c) Algorithme
+    grpo_sampler = GRPOSampler(
+        old_model=copy.deepcopy(model).eval().requires_grad_(False),
+        ref_model=copy.deepcopy(model).eval().requires_grad_(False),
+        tokenizer=tokenizer,
+        reward_fns=[no_reward, no_reward, no_reward],  # stub rewards
+        G=2,  # 2 samples per prompt
     )
 
-    trainer.fit()  # Le test réussit si aucune exception n'est levée
+
+
+    # (d) Trainer Composer – 2 batches
+    trainer = Trainer(
+        model=model,
+        train_dataloader=dl,
+        max_duration="1ba",
+        algorithms=[grpo_sampler],
+        precision="fp32",
+        optimizers=optim.SGD(model.parameters(), lr=1e-3),
+        loggers=[],
+    )
+
+    trainer.fit()          # Test réussi si aucune exception n’est levée

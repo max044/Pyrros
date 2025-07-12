@@ -18,6 +18,8 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
 )
+import transformers
+from pyrros.models.grpo_model import GRPOModel
 
 # — PEFT (facultatif) --------------------------------------------------------
 try:
@@ -26,11 +28,6 @@ except ImportError:  # LoRA/QLoRA optionnels
     LoraConfig = None  # type: ignore
     get_peft_model = None  # type: ignore
 
-# — Composer (facultatif mais recommandé) ------------------------------------
-try:
-    from composer.models import HuggingFaceModel
-except ImportError:  # Composer optionnel
-    HuggingFaceModel = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +63,6 @@ def load_model(
     *,
     # --- Fonctionnement général ---------------------------------------------
     pretrained: bool = True,  # False → init aléatoire : idéal pour tests/CI
-    wrap_composer: bool = True,  # True → renvoie un HuggingFaceModel (Composer)
     device: Union[str, torch.device, None] = None,  # "cuda:0" / "cpu" / "mps"
     dtype: Union[torch.dtype, None] = None,  # fp32 / bf16 / etc.
     device_map: Union[str, Dict[str, int]] = "auto",  # ignoré si `device` set
@@ -80,14 +76,13 @@ def load_model(
     gradient_checkpointing: bool = False,
     tokenizer_kwargs: Dict[str, Any] | None = None,
     model_kwargs: Dict[str, Any] | None = None,
-) -> Tuple["torch.nn.Module", "transformers.PreTrainedTokenizer"]:
+) -> Tuple["GRPOModel", "transformers.PreTrainedTokenizer"]:
     """
     Charge un modèle CausalLM (HF) + son tokenizer, avec options :
 
     • `pretrained=False`  → configuration + poids aléatoires (smoke-test quick)
     • `bnb4bit=True`      → BitsAndBytes 4-bit nf4
     • `use_qlora=True`    → ajout d’adapters LoRA
-    • `wrap_composer=True`→ renvoie un `HuggingFaceModel` (ComposerModel)
     """
     tokenizer_kwargs = tokenizer_kwargs or {}
     model_kwargs = model_kwargs or {}
@@ -138,13 +133,9 @@ def load_model(
         model.config.use_cache = False
         logger.info("Gradient checkpointing activé.")
 
-    # 6) ──────────────────── Wrapper Composer
-    if wrap_composer:
-        if HuggingFaceModel is None:
-            raise RuntimeError(
-                "Composer n’est pas installé – `pip install mosaicml-composer` pour utiliser `wrap_composer=True`."
-            )
-        model = HuggingFaceModel(model=model, tokenizer=tokenizer)
+    # 6) ──────────────────── Wrapper GRPO
+    model = GRPOModel(model=model, tokenizer=tokenizer)
+        
 
     logger.info(
         "Modèle « %s » prêt (pretrained=%s, QLoRA=%s, 4-bit=%s, Composer=%s).",
@@ -152,6 +143,5 @@ def load_model(
         pretrained,
         use_qlora,
         bnb4bit,
-        wrap_composer,
     )
     return model, tokenizer

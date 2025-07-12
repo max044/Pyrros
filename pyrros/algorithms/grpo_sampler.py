@@ -1,0 +1,115 @@
+from typing import Sequence, Callable, List, Any, Union
+
+from peft import PeftModel
+import torch
+import torch.nn.functional as F
+from composer.core import Algorithm, Event, State
+
+from transformers import GenerationConfig, PreTrainedModel, PreTrainedTokenizer
+
+from pyrros.models.grpo_model import GRPOModel
+
+
+class GRPOSampler(Algorithm):
+    def __init__(self,
+                 old_model: GRPOModel,
+                 ref_model: GRPOModel,
+                 tokenizer: PreTrainedTokenizer,
+                 reward_fns, G):
+        self.old_model = old_model
+        self.ref_model = ref_model
+        self.tokenizer = tokenizer
+        self.reward_fns = reward_fns
+        self.G = G
+
+    def match(self, event, state):
+        return event == Event.BEFORE_FORWARD
+    
+    def _sample_group(self, input_ids, attention_mask) -> tuple[torch.Tensor, torch.Tensor]:
+        old_log_probs = []
+        ref_log_probs = []
+
+
+        old_log_probs = self.old_model.compute_log_probs(input_ids, attention_mask)
+        ref_log_probs = self.ref_model.compute_log_probs(input_ids, attention_mask)
+
+        return old_log_probs, ref_log_probs
+
+    def _compute_rewards(self, completions: List[str]) -> torch.Tensor:
+        rewards = []
+        for reward_fn in self.reward_fns:
+            reward = reward_fn(completions)
+            if isinstance(reward, torch.Tensor):
+                rewards.append(reward)
+            elif isinstance(reward, Sequence) and all(isinstance(r, torch.Tensor) for r in reward):
+                rewards.extend(reward)
+            else:
+                raise ValueError(f"Invalid reward type: {type(reward)}")
+        return torch.stack(rewards, dim=1) if len(rewards) > 1 else rewards[0]
+    
+    def _group_advantages(self, rewards: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+        return (rewards - rewards.mean()) / (rewards.std() + eps)
+
+
+
+    def apply(self, event, state, logger):
+        input_ids: torch.Tensor = state.batch["input_ids"]
+        attention_mask: torch.Tensor = state.batch["attention_mask"]
+
+        # duplicate prompt num_rollouts times
+        input_ids = input_ids.repeat(self.G, 1)
+        attention_mask = attention_mask.repeat(self.G, 1)
+
+        # 1. create G completions with old_model for each input, c'est long car plusieurs passes pour chaque element du batch + num_samples
+        # 2. compute the rewards and advantages
+        # 3. compute log-probabilities for each completion (old and reference models)
+        # 4. compute the KL divergence between the old and reference models
+
+        # 1. generate completions
+        pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        generation_config = GenerationConfig(
+            do_sample=True,
+            top_p=1.0,
+            temperature=0.6,
+            max_length=128,
+            pad_token_id=pad_token_id,
+        )
+        sequence_ids = self.old_model.generate(input_ids, generation_config=generation_config)
+        completions = self.tokenizer.batch_decode(
+            sequence_ids[:, input_ids.shape[1] :], skip_special_tokens=True
+        )
+
+
+        completion_mask = torch.zeros_like(sequence_ids, dtype=torch.bool)
+        completion_mask[:, input_ids.shape[1] :] = True
+        completion_mask[sequence_ids == pad_token_id] = False
+        completion_mask = completion_mask[:, 1:]
+
+
+        # 2. compute rewards and advantages
+        rewards = self._compute_rewards(completions)
+        advantages = self._group_advantages(rewards)
+
+        # 3. compute log-probabilities
+        attention_mask = sequence_ids != pad_token_id
+        logp_old, logp_ref = self._sample_group(sequence_ids, attention_mask)
+
+
+        # 4. compute KL divergence 
+        # kl_div = self._approximate_kl_divergence(logp_old, logp_ref, completion_mask)
+
+        
+        state.batch = {
+            "input_ids": input_ids,
+            "labels": state.batch["labels"],
+            "attention_mask": attention_mask,
+
+            # "rewards": rewards,        # (B,G)
+            # "completions": completions,  # List[str]
+            # "kl_div": kl_div,          # (B,G)
+            "sequence_ids": sequence_ids,  # (B,G,L)
+            "logprobs_old": logp_old,  # (B,G,V)
+            "logprobs_ref": logp_ref,  # (B,G,V)
+            "advantages": advantages,  # (B,G)
+            "completion_mask": completion_mask,  # (B,G,L)
+        }
