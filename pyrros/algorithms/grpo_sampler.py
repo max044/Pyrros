@@ -29,23 +29,16 @@ class GRPOSampler(Algorithm):
         old_log_probs = []
         ref_log_probs = []
 
-
-        old_log_probs = self.old_model.compute_log_probs(input_ids, attention_mask)
-        ref_log_probs = self.ref_model.compute_log_probs(input_ids, attention_mask)
+        with torch.no_grad():
+            old_log_probs = self.old_model.compute_log_probs(input_ids, attention_mask)
+            ref_log_probs = self.ref_model.compute_log_probs(input_ids, attention_mask)
 
         return old_log_probs, ref_log_probs
 
     def _compute_rewards(self, completions: List[str]) -> torch.Tensor:
-        rewards = []
-        for reward_fn in self.reward_fns:
-            reward = reward_fn(completions)
-            if isinstance(reward, torch.Tensor):
-                rewards.append(reward)
-            elif isinstance(reward, Sequence) and all(isinstance(r, torch.Tensor) for r in reward):
-                rewards.extend(reward)
-            else:
-                raise ValueError(f"Invalid reward type: {type(reward)}")
-        return torch.stack(rewards, dim=1) if len(rewards) > 1 else rewards[0]
+        list_of_rewards = [reward_fn(completions) for reward_fn in self.reward_fns]
+        return torch.stack(list_of_rewards, dim=1).sum(dim=1)
+
     
     def _group_advantages(self, rewards: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
         return (rewards - rewards.mean()) / (rewards.std() + eps)
@@ -60,11 +53,6 @@ class GRPOSampler(Algorithm):
         input_ids = input_ids.repeat(self.G, 1)
         attention_mask = attention_mask.repeat(self.G, 1)
 
-        # 1. create G completions with old_model for each input, c'est long car plusieurs passes pour chaque element du batch + num_samples
-        # 2. compute the rewards and advantages
-        # 3. compute log-probabilities for each completion (old and reference models)
-        # 4. compute the KL divergence between the old and reference models
-
         # 1. generate completions
         pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
         generation_config = GenerationConfig(
@@ -74,7 +62,9 @@ class GRPOSampler(Algorithm):
             max_length=128,
             pad_token_id=pad_token_id,
         )
+        input_ids = input_ids.to("mps")
         sequence_ids = self.old_model.generate(input_ids, generation_config=generation_config)
+        input_ids = input_ids.to("cpu")
         completions = self.tokenizer.batch_decode(
             sequence_ids[:, input_ids.shape[1] :], skip_special_tokens=True
         )
@@ -93,20 +83,12 @@ class GRPOSampler(Algorithm):
         # 3. compute log-probabilities
         attention_mask = sequence_ids != pad_token_id
         logp_old, logp_ref = self._sample_group(sequence_ids, attention_mask)
-
-
-        # 4. compute KL divergence 
-        # kl_div = self._approximate_kl_divergence(logp_old, logp_ref, completion_mask)
-
         
         state.batch = {
             "input_ids": input_ids,
             "labels": state.batch["labels"],
             "attention_mask": attention_mask,
 
-            # "rewards": rewards,        # (B,G)
-            # "completions": completions,  # List[str]
-            # "kl_div": kl_div,          # (B,G)
             "sequence_ids": sequence_ids,  # (B,G,L)
             "logprobs_old": logp_old,  # (B,G,V)
             "logprobs_ref": logp_ref,  # (B,G,V)

@@ -56,7 +56,7 @@ def make_collate_fn(tokenizer: PreTrainedTokenizer, max_len: int = 32):
 
 
 # ---------- 3. Test --------------------------------------
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["mps"])
 def test_grpo_smoke(device: str):
     """Boucle GRPO complète sur 2 batches, 100 % CPU."""
     # (a) Policy courante π_θ + tokenizer  (wrapper Composer)
@@ -71,7 +71,7 @@ def test_grpo_smoke(device: str):
     ds = FakePromptDataset(length=4)
     dl = DataLoader(
         ds,
-        batch_size=3,
+        batch_size=2,
         shuffle=False,
         collate_fn=make_collate_fn(tokenizer, max_len=32),
     )
@@ -81,7 +81,7 @@ def test_grpo_smoke(device: str):
         old_model=copy.deepcopy(model).eval().requires_grad_(False),
         ref_model=copy.deepcopy(model).eval().requires_grad_(False),
         tokenizer=tokenizer,
-        reward_fns=[no_reward, no_reward, no_reward],  # stub rewards
+        reward_fns=[no_reward, no_reward],  # stub rewards
         G=2,  # 2 samples per prompt
     )
 

@@ -16,23 +16,16 @@ class GRPOModel(HuggingFaceModel):
         return log_probs
 
     def loss(self, outputs, batch):
-        # outputs = logprobs courant
-
         log_probs = outputs
         logprobs_old = batch["logprobs_old"]
         logprobs_ref = batch["logprobs_ref"]
-        # completions = batch["completions"]
-        # kl_div = batch["kl_div"]
-        # rewards = batch["rewards"]
         advantages = batch["advantages"]
         completion_mask = batch["completion_mask"]
 
-        # Compute the loss
         kl = self._approximate_kl_divergence(log_probs, logprobs_ref, completion_mask)
+        
+        # Compute the loss
         ratio = (log_probs - logprobs_old).exp()
-        print(f"ratio.shape: {ratio.shape}")
-        print(f"advantages.shape: {advantages.shape}")
-        print(f"advantages unsqueeze(-1).shape: {advantages.unsqueeze(-1).shape}")
         surrogate_loss = ratio * advantages.unsqueeze(-1)
         surrogate_loss_clipped = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantages.unsqueeze(-1)
         loss = -torch.min(surrogate_loss, surrogate_loss_clipped) + self.beta * kl
@@ -51,8 +44,7 @@ class GRPOModel(HuggingFaceModel):
             log_ratio = log_ratio * completion_mask
 
         return log_ratio.exp() - log_ratio - 1
-    
-    @torch.no_grad()
+
     def compute_log_probs(
         self,
         sequence_ids: torch.Tensor,
