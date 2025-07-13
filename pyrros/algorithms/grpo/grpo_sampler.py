@@ -11,13 +11,7 @@ from pyrros.models.grpo_model import GRPOModel
 
 
 class GRPOSampler(Algorithm):
-    def __init__(self,
-                 old_model: GRPOModel,
-                 ref_model: GRPOModel,
-                 tokenizer: PreTrainedTokenizer,
-                 reward_fns, G):
-        # self.old_model = old_model
-        self.ref_model = ref_model
+    def __init__(self, tokenizer: PreTrainedTokenizer, reward_fns, G):
         self.tokenizer = tokenizer
         self.reward_fns = reward_fns
         self.G = G
@@ -36,6 +30,7 @@ class GRPOSampler(Algorithm):
 
 
     def apply(self, event, state, logger):
+        ref_model = state.ref_model
         input_ids: torch.Tensor = state.batch["input_ids"]
         attention_mask: torch.Tensor = state.batch["attention_mask"]
 
@@ -78,7 +73,7 @@ class GRPOSampler(Algorithm):
         # 3. compute log-probabilities
         attention_mask = sequence_ids != pad_token_id
         with torch.no_grad():
-            logp_ref = self.ref_model.compute_log_probs(sequence_ids, attention_mask, gen_mask=completion_mask)
+            logp_ref = ref_model.compute_log_probs(sequence_ids, attention_mask, gen_mask=completion_mask)
         
             logits = torch.stack(old_model_output.logits, dim=1)
             # 2. log-probas π_old sur les tokens générés

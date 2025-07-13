@@ -24,3 +24,4 @@ It combines:
 git clone https://github.com/max044/Pyrros.git
 cd Pyrros
 uv sync
+```

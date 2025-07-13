@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Train GRPO on a prompt-only dataset with MosaicML Composer.
+Train GRPO sur un dataset prompt-only avec MosaicML Composer.
 
 Usage :
     python recipes/train_grpo_qwen.py \
@@ -14,18 +14,13 @@ Usage :
 """
 
 from __future__ import annotations
-
 import argparse
-import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Sequence
-
-import copy
 import torch
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
+from torch.utils.data import DataLoader
 
 from composer import Trainer
 from composer.loggers import WandBLogger, TensorboardLogger
@@ -34,6 +29,7 @@ from composer.loggers import WandBLogger, TensorboardLogger
 from pyrros.algorithms.grpo_sampler import GRPOSampler
 from pyrros.modules.model import load_model
 from pyrros.models.grpo_model import GRPOModel
+from pyrros.modules.dataset import load_dataset
 # ──────────────────────────────────────────────────────────────────
 
 logging.basicConfig(
@@ -43,54 +39,32 @@ logging.basicConfig(
 logger = logging.getLogger("recipe")
 
 
-# ------------------------------------------------------------------#
-# 1. Dataset JSONL (« prompt-only »)                                 #
-# ------------------------------------------------------------------#
-class JsonlPromptDataset(Dataset):
-    """
-    Attend un fichier JSONL contenant au moins la clé « prompt ».
-    Chaque ligne exemple :
-    {"prompt": "Write a short story about..."}
-    """
-
-    def __init__(self, path: str | Path):
-        self.path = Path(path)
-        self.data: List[Dict[str, str]] = [
-            json.loads(l) for l in self.path.open()
-        ]
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx]["prompt"]
-
-
 def make_collate_fn(tokenizer, max_len: int = 512):
-    def _collate(batch_prompts):
-        enc = tokenizer(
-            batch_prompts,
+    def _collate(batch):
+        # Utilise le template de chat du tokenizer
+        enc = tokenizer.apply_chat_template(
+            batch,
+            tokenize=True,
+            add_generation_prompt=True,
             padding="longest",
+            padding_side="left",
             truncation=True,
             max_length=max_len,
             return_tensors="pt",
+            return_attention_mask=True,
+            return_dict=True,
         )
-        # Labels = input_ids  (profite de GRPOLossAlgorithm pour la vraie loss)
         return {
             "input_ids": enc.input_ids,
-            "labels": enc.input_ids.clone(),
+            "labels":    enc.input_ids.clone(),
             "attention_mask": enc.attention_mask,
         }
-
     return _collate
 
-def no_reward(comletion_ids: Sequence[str], **kwargs) -> torch.Tensor:
-    return torch.zeros(len(comletion_ids))
+def no_reward(completion_ids: Sequence[str], **kwargs) -> torch.Tensor:
+    return torch.zeros(len(completion_ids))
 
 
-# ------------------------------------------------------------------#
-# 2. CLI & hyper-paramètres                                         #
-# ------------------------------------------------------------------#
 def parse_args():
     p = argparse.ArgumentParser(description="Train GRPO with Composer")
     p.add_argument("--model_name", type=str, default="Qwen/Qwen1.5-0.5B")
@@ -111,13 +85,10 @@ def parse_args():
     return p.parse_args()
 
 
-# ------------------------------------------------------------------#
-# 3. Main recipe                                                    #
-# ------------------------------------------------------------------#
 def main():
     args = parse_args()
 
-    # 3.1  Model + tokenizer
+    # 1. Modèle + tokenizer
     model, tokenizer = load_model(
         args.model_name,
         use_qlora=args.use_qlora,
@@ -125,15 +96,14 @@ def main():
         gradient_checkpointing=args.use_qlora,
     )
 
-    model = GRPOModel(
-        base_model=model,
-        ref_model=copy.deepcopy(model).eval().requires_grad_(False),  # frozen model
-        epsilon=0.2,
-        beta=0.02,
+    # 2. Dataset & DataLoader
+    dataset = load_dataset(
+        args.data_path,
+        tokenizer=tokenizer,
+        seq_len=512,
+        text_field="prompt",
+        max_samples=None,
     )
-
-    # 3.2  Dataset & DataLoader
-    dataset = JsonlPromptDataset(args.data_path)
     dl = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -141,46 +111,38 @@ def main():
         collate_fn=make_collate_fn(tokenizer),
     )
 
-    # 3.3  Optimiser
+    # 3. Optimiseur
     optimiser = AdamW(model.parameters(), lr=args.lr)
 
-    # 3.4  Loggers
+    # 4. Loggers
     loggers = []
     if args.wandb:
-        loggers.append(
-            WandBLogger(
-                project="pyrros-grpo",
-                name=Path(args.output_dir).name,
-            )
-        )
+        loggers.append(WandBLogger())
     if args.tensorboard:
-        loggers.append(TensorboardLogger(log_dir=args.output_dir))
+        loggers.append(TensorboardLogger())
 
+    # 5. Algorithme GRPO
     grpo_sampler = GRPOSampler(
-        old_model=None,  # same as current model when num iteration == 1 (no mu)
-        ref_model=copy.deepcopy(model).eval().requires_grad_(False).to(device),
+        old_model=None,
+        ref_model=model,
         tokenizer=tokenizer,
-        reward_fns=[no_reward, no_reward],  # stub rewards
-        G=2,  # 2 samples per prompt
+        reward_fns=[no_reward],
+        G=args.num_samples,
     )
 
-
-    # 3.6  Trainer
+    # 6. Trainer Composer
     trainer = Trainer(
         model=model,
         train_dataloader=dl,
         max_duration=args.max_duration,
         algorithms=[grpo_sampler],
-        precision="bf16" if torch.cuda.is_available() else "fp32",
-        loggers=loggers,
         optimizers=optimiser,
-        run_name=Path(args.output_dir).name,
+        loggers=loggers,
+        run_name="grpo_qwen",
         save_folder=args.output_dir,
     )
 
-    # 3.7  FIT !
     trainer.fit()
-    trainer.close()  # force flush loggers
 
 
 if __name__ == "__main__":
