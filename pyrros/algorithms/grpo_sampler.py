@@ -55,8 +55,7 @@ class GRPOSampler(Algorithm):
             return_dict_in_generate=True,
         )
         # old_model_output = self.old_model.generate(input_ids, generation_config=generation_config)
-        with torch.no_grad():
-            old_model_output = state.model.generate(input_ids, generation_config=generation_config)
+        old_model_output = state.model.generate(input_ids, generation_config=generation_config)
         
         sequence_ids = old_model_output.sequences
 

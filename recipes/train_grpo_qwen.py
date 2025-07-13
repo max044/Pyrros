@@ -19,7 +19,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
 import copy
 import torch
@@ -31,8 +31,8 @@ from composer import Trainer
 from composer.loggers import WandBLogger, TensorboardLogger
 
 # ───── Pyrros core ────────────────────────────────────────────────
+from pyrros.algorithms.grpo_sampler import GRPOSampler
 from pyrros.modules.model import load_model
-from pyrros.modules.rewards import no_reward
 from pyrros.models.grpo_model import GRPOModel
 # ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +83,9 @@ def make_collate_fn(tokenizer, max_len: int = 512):
         }
 
     return _collate
+
+def no_reward(comletion_ids: Sequence[str], **kwargs) -> torch.Tensor:
+    return torch.zeros(len(comletion_ids))
 
 
 # ------------------------------------------------------------------#
@@ -151,7 +154,15 @@ def main():
             )
         )
     if args.tensorboard:
-        loggers.append(TensorboardLogger(log_dir=args.output_dir))    
+        loggers.append(TensorboardLogger(log_dir=args.output_dir))
+
+    grpo_sampler = GRPOSampler(
+        old_model=None,  # same as current model when num iteration == 1 (no mu)
+        ref_model=copy.deepcopy(model).eval().requires_grad_(False).to(device),
+        tokenizer=tokenizer,
+        reward_fns=[no_reward, no_reward],  # stub rewards
+        G=2,  # 2 samples per prompt
+    )
 
 
     # 3.6  Trainer
@@ -159,8 +170,7 @@ def main():
         model=model,
         train_dataloader=dl,
         max_duration=args.max_duration,
-        algorithms=[algo],
-        callbacks=[gen_cb],
+        algorithms=[grpo_sampler],
         precision="bf16" if torch.cuda.is_available() else "fp32",
         loggers=loggers,
         optimizers=optimiser,

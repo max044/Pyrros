@@ -1,4 +1,5 @@
 import string
+from typing import Sequence
 import pytest
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -11,9 +12,11 @@ from transformers import PreTrainedTokenizer
 from pyrros.algorithms.grpo_sampler import GRPOSampler
 from pyrros.algorithms.policy_snapshot import PolicySnapshot
 from pyrros.modules.model import load_model
-from pyrros.modules.rewards import no_reward          # stub reward
 # ────────────────────────────────────────────────────────
 
+
+def no_reward(comletion_ids: Sequence[str], **kwargs) -> torch.Tensor:
+    return torch.zeros(len(comletion_ids))
 
 # ---------- 1. Dataset « prompt-only » -------------------
 class FakePromptDataset(Dataset):
@@ -105,4 +108,4 @@ def test_grpo_smoke(device: str):
         loggers=[],
     )
 
-    trainer.fit()          # Test réussi si aucune exception n’est levée
+    trainer.fit()    # Test réussi si aucune exception n’est levée
