@@ -9,8 +9,9 @@ import copy
 from transformers import PreTrainedTokenizer
 
 # ───────── Pyrros imports ────────────────────────────────
-from pyrros.algorithms.grpo_sampler import GRPOSampler
-from pyrros.algorithms.policy_snapshot import PolicySnapshot
+from pyrros.algorithms.grpo.load_ref_model import LoadRefModel
+from pyrros.algorithms.grpo.grpo_sampler import GRPOSampler
+from pyrros.algorithms.grpo.policy_snapshot import PolicySnapshot
 from pyrros.modules.model import load_model
 # ────────────────────────────────────────────────────────
 
@@ -81,9 +82,10 @@ def test_grpo_smoke(device: str):
     )
 
     # (c) Algorithme
+
+    load_ref_model = LoadRefModel(ref_model_name="Qwen/Qwen1.5-0.5B")
+
     grpo_sampler = GRPOSampler(
-        old_model=None,  # same as current model when num iteration == 1 (no mu)
-        ref_model=copy.deepcopy(model).eval().requires_grad_(False).to(device),
         tokenizer=tokenizer,
         reward_fns=[no_reward, no_reward],  # stub rewards
         G=2,  # 2 samples per prompt
@@ -101,7 +103,7 @@ def test_grpo_smoke(device: str):
         model=model,
         train_dataloader=dl,
         max_duration="1ba",
-        algorithms=[grpo_sampler],
+        algorithms=[load_ref_model, grpo_sampler],
         device=device,
         precision="fp32",
         optimizers=optim.SGD(model.parameters(), lr=1e-3),
