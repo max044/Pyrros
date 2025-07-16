@@ -27,9 +27,10 @@ USER_PROMPT = (
     image=Image()
     .with_secrets(["GITHUB_TOKEN"])
     .add_commands([
-        "pip install --upgrade uv"
-        "uv pip install git+https://max044:${GITHUB_TOKEN}@github.com/max044/Pyrros.git",
-        "uv sync"
+        # "pip install -U --upgrade uv",
+        "pip install  git+https://max044:${GITHUB_TOKEN}@github.com/max044/Pyrros.git",
+        # "uv sync",
+        # "uv run  "
     ]),
     gpu="RTX4090",
     cpu=4,
