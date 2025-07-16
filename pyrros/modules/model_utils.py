@@ -19,7 +19,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 import transformers
-from pyrros.models.grpo_model import GRPOModel
+from pyrros.models.grpo.grpo_model import GRPOModel
 
 # — PEFT (facultatif) --------------------------------------------------------
 try:
@@ -63,9 +63,7 @@ def load_model(
     *,
     # --- Fonctionnement général ---------------------------------------------
     pretrained: bool = True,  # False → init aléatoire : idéal pour tests/CI
-    # device: Union[str, torch.device, None] = None,  # "cuda:0" / "cpu" / "mps"
     dtype: Union[torch.dtype, None] = None,  # fp32 / bf16 / etc.
-    # device_map: Union[str, Dict[str, int]] = "auto",  # ignoré si `device` set
     # --- Quantisation / LoRA -------------------------------------------------
     bnb4bit: bool = False,
     use_qlora: bool = False,

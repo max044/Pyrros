@@ -27,12 +27,9 @@ USER_PROMPT = (
     image=Image()
     .with_secrets(["GITHUB_TOKEN"])
     .add_commands([
-        # "pip install -U --upgrade uv",
         "pip install  git+https://max044:${GITHUB_TOKEN}@github.com/max044/Pyrros.git",
-        # "uv sync",
-        # "uv run  "
     ]),
-    gpu="RTX4090",
+    gpu="A100-40",
     cpu=4,
     secrets=["GITHUB_TOKEN"]
 )
@@ -40,7 +37,7 @@ def qwen_fine_tune_grpo():
     import os
     import torch
     from torch.utils.data import DataLoader
-    from datasets import load_from_disk
+    # from datasets import load_from_disk
     from pyrros.modules.model import load_model
     from pyrros.algorithms.grpo.load_ref_model import LoadRefModel
     from pyrros.algorithms.grpo.grpo_sampler import GRPOSampler
@@ -49,6 +46,7 @@ def qwen_fine_tune_grpo():
     from torch import optim
     from composer.core import DataSpec
     from composer.loggers import TensorboardLogger
+    from pyrros.modules.dataset import load_dataset
 
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
