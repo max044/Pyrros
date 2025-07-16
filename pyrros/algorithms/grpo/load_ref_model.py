@@ -1,6 +1,7 @@
 from composer.core import Algorithm, Event, State
 from pyrros.modules.model import load_model
 from composer.distributed import parallelize_composer_model, prepare_tp_module
+import torch
 
 class LoadRefModel(Algorithm):
     def __init__(self, ref_model_name: str):
@@ -19,6 +20,7 @@ class LoadRefModel(Algorithm):
         )
         ref_model.eval()
         ref_model.requires_grad_(False)
+        ref_model.to("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
         if state.tp_config is not None:
             prepare_tp_module(

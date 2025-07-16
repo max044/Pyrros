@@ -41,7 +41,7 @@ device = "mps"
 model, tokenizer = load_model(
     WEIGHT_PATH,
     pretrained=True,
-    device=device,
+    # device=device,
     dtype=torch.float16,
     use_qlora=True,
 )

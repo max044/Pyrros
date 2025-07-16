@@ -93,21 +93,9 @@ class GRPOSampler(Algorithm):
         # 3. compute log-probabilities
         attention_mask = sequence_ids != self.tokenizer.pad_token_id
         with torch.no_grad():
+            sequence_ids = sequence_ids.to(ref_model.model.device)
+            attention_mask = attention_mask.to(ref_model.model.device)
             logp_ref = ref_model.compute_log_probs(sequence_ids, attention_mask)
-
-            # logits = torch.stack(old_model_output.logits, dim=1)
-            # # 2. log-probas π_old sur les tokens générés
-            # logp_old = torch.log_softmax(logits, dim=-1)
-            # gen_ids  = sequence_ids[:, -logits.size(1):]             # tokens générés
-            # logp_old = logp_old.gather(-1, gen_ids.unsqueeze(-1)).squeeze(-1)  # (B, L_gen)
-
-            # B, total_len = sequence_ids.shape
-            # L_gen = old_model_output.logits[0].size(1)   # ou logits.size(1) après stack
-            # print("sequence_ids:", sequence_ids.shape)
-            # print("logits:", logits.shape)
-            # print("completion_mask:", completion_mask.shape)
-            # print("— prompt_len:", input_ids.shape[1], "gen_len:", L_gen)
-            # print("true par batch:", completion_mask.sum(dim=1))
 
 
         state.batch = {

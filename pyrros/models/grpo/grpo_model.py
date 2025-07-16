@@ -61,6 +61,12 @@ class GRPOModel(HuggingFaceModel):
         """
         position_ids = attention_mask.long().cumsum(dim=-1) - 1
         position_ids.masked_fill_(mask=(attention_mask == 0), value=1)
+
+        # place ids on model device
+        sequence_ids = sequence_ids.to(self.model.device)
+        attention_mask = attention_mask.to(self.model.device)
+        position_ids = position_ids.to(self.model.device)
+
         output = self.model.forward(
             input_ids=sequence_ids,
             attention_mask=attention_mask,
