@@ -15,7 +15,7 @@ class LoadRefModel(Algorithm):
         ref_model, tokenizer = load_model(
             self.ref_model_name,
             pretrained=True,
-            device=state.device.name,
+            # device=state.device.name,
         )
         ref_model.eval()
         ref_model.requires_grad_(False)
