@@ -16,6 +16,7 @@ class LoadRefModel(Algorithm):
         ref_model, tokenizer = load_model(
             self.ref_model_name,
             pretrained=True,
+            dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
             # device=state.device.name,
         )
         ref_model.eval()
