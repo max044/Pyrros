@@ -10,6 +10,8 @@ dependencies = [
     "dotenv>=0.9.9",
     "peft>=0.16.0",
     "pytest>=8.4.1",
+    "questionary>=2.1.0",
+    "rich>=13.9.4",
     "tensorboard>=2.19.0",
     "torch==2.7.0",
     "transformers",

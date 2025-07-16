@@ -30,7 +30,7 @@ class GRPOModel(HuggingFaceModel):
         loss = -torch.min(surrogate_loss, surrogate_loss_clipped) + self.beta * kl
 
         if completion_mask is not None:
-            loss = (loss * completion_mask).sum() / completion_mask.sum(axis=-1)
+            loss = (loss * completion_mask).sum() / completion_mask.sum(axis=-1).clamp(min=1.0)
         else:
             loss = loss.mean(axis=-1)
 

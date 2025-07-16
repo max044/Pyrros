@@ -37,33 +37,30 @@ def qwen_fine_tune_grpo():
     import os
     import torch
     from torch.utils.data import DataLoader
-    # from datasets import load_from_disk
-    from pyrros.modules.model import load_model
-    from pyrros.algorithms.grpo.load_ref_model import LoadRefModel
-    from pyrros.algorithms.grpo.grpo_sampler import GRPOSampler
-    from .rewards import format_reward_func, reward_math_output
+    from datasets import load_from_disk
+    from pyrros.utils.model_utils import load_model
+    from registry.algorithms.grpo.load_ref_model import LoadRefModel
+    from registry.algorithms.grpo.grpo_sampler import GRPOSampler
+    from .rewards import FormatReward, MathAnswerReward
     from composer import Trainer
     from torch import optim
     from composer.core import DataSpec
     from composer.loggers import TensorboardLogger
-    from pyrros.modules.dataset import load_dataset
 
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    device = "gpu"
+    device = "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
-    # Charger le modèle et le tokenizer via Pyrros (QLoRA ou sans PEFT)
     model, tokenizer = load_model(
         WEIGHT_PATH,
         pretrained=True,
-        # device=device,
-        # device_map="auto",
-        dtype=torch.bfloat16,
+        dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float16,
         use_qlora=True,
+        lora_r=8,
+        lora_alpha=16,
     )
 
-    # Charger le dataset GSM8K
     dataset = load_from_disk(GSM8K_DATASET_PATH)
     train_ds = dataset["train"]
     # test_ds = dataset["test"]
@@ -121,13 +118,11 @@ def qwen_fine_tune_grpo():
         collate_fn=collate_fn,
     )
 
-    # Définir les algorithmes GRPO
     load_ref = LoadRefModel(ref_model_name=WEIGHT_PATH)
-
 
     grpo_sampler = GRPOSampler(
         tokenizer=tokenizer,
-        reward_fns=[format_reward_func, reward_math_output],
+        reward_fns=[FormatReward(), MathAnswerReward()],
         G=2,
         generation_kwargs={
             'max_new_tokens': 1024,
@@ -141,7 +136,6 @@ def qwen_fine_tune_grpo():
         get_num_samples_in_batch=lambda batch: batch['input_ids'].shape[0],
     )
 
-    # Composer Trainer
     trainer = Trainer(
         model=model,
         train_dataloader=train_data_spec,
@@ -155,7 +149,6 @@ def qwen_fine_tune_grpo():
         loggers=[TensorboardLogger(log_dir=f"{MOUNT_PATH}/tensorboard_logs", flush_interval=1)],
     )
 
-    # Lancer l'entraînement
     trainer.fit()
     trainer.close()
 

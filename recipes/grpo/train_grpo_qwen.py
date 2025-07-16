@@ -2,10 +2,10 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from datasets import load_dataset
-from pyrros.modules.model import load_model
-from pyrros.algorithms.grpo.load_ref_model import LoadRefModel
-from pyrros.algorithms.grpo.grpo_sampler import GRPOSampler
-from .rewards import format_reward_func, reward_math_output
+from pyrros.utils.model_utils import load_model
+from registry.algorithms.grpo.load_ref_model import LoadRefModel
+from registry.algorithms.grpo.grpo_sampler import GRPOSampler
+from .rewards import FormatReward, MathAnswerReward
 from composer import Trainer
 from torch import optim
 from composer.core import DataSpec
@@ -35,20 +35,17 @@ USER_PROMPT = (
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-device = "mps"
+device = "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
-# Charger le modèle et le tokenizer via Pyrros (QLoRA ou sans PEFT)
+
 model, tokenizer = load_model(
     WEIGHT_PATH,
     pretrained=True,
-    # device=device,
     dtype=torch.float16,
     use_qlora=True,
 )
 
-# Charger le dataset GSM8K
 dataset = load_dataset(GSM8K_DATASET_PATH, "main")
-# dataset.save_to_disk("test_ds")
 train_ds = dataset["train"]
 # test_ds = dataset["test"]
 
@@ -79,13 +76,10 @@ tokenized = train_ds.map(
 )
 
 def collate_fn(examples):
-    # ex['input_ids'] et ex['attention_mask'] sont déjà des listes d'entiers
     input_ids = torch.tensor([ex['input_ids'] for ex in examples], dtype=torch.long)
-    print(f"Input IDs shape: {input_ids.shape}")
     attention_mask = torch.tensor([ex['attention_mask'] for ex in examples], dtype=torch.long)
     labels = input_ids.clone()
 
-    # gardez vos prompts/completions pour les reward functions
     prompts = [ex['prompts'] for ex in examples]
     answers = [ex['answers'] for ex in examples]
 
@@ -104,13 +98,11 @@ dataloader = DataLoader(
     collate_fn=collate_fn,
 )
 
-# Définir les algorithmes GRPO
 load_ref = LoadRefModel(ref_model_name=WEIGHT_PATH)
-
 
 grpo_sampler = GRPOSampler(
     tokenizer=tokenizer,
-    reward_fns=[format_reward_func, reward_math_output],
+    reward_fns=[FormatReward(), MathAnswerReward()],
     G=2,
     generation_kwargs={
         'max_new_tokens': 1024,
@@ -124,7 +116,6 @@ train_data_spec = DataSpec(
     get_num_samples_in_batch=lambda batch: batch['input_ids'].shape[0],
 )
 
-# Composer Trainer
 trainer = Trainer(
     model=model,
     train_dataloader=train_data_spec,
@@ -138,6 +129,5 @@ trainer = Trainer(
     loggers=[TensorboardLogger(flush_interval=1)],
 )
 
-# Lancer l'entraînement
 trainer.fit()
 trainer.close()
