@@ -40,7 +40,7 @@ def qwen_fine_tune_grpo():
     import os
     import torch
     from torch.utils.data import DataLoader
-    from datasets import load_dataset
+    from datasets import load_from_disk
     from pyrros.modules.model import load_model
     from pyrros.algorithms.grpo.load_ref_model import LoadRefModel
     from pyrros.algorithms.grpo.grpo_sampler import GRPOSampler
@@ -53,21 +53,23 @@ def qwen_fine_tune_grpo():
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    device = "cuda"
+    device = "gpu"
 
     # Charger le modèle et le tokenizer via Pyrros (QLoRA ou sans PEFT)
     model, tokenizer = load_model(
         WEIGHT_PATH,
         pretrained=True,
-        device=device,
-        dtype=torch.float16,
+        # device=device,
+        # device_map="auto",
+        dtype=torch.bfloat16,
         use_qlora=True,
     )
 
     # Charger le dataset GSM8K
-    dataset = load_dataset(GSM8K_DATASET_PATH, name="main")
+    dataset = load_from_disk(GSM8K_DATASET_PATH)
     train_ds = dataset["train"]
     # test_ds = dataset["test"]
+    print(train_ds)
 
     def prepare_example(ex):
         messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": USER_PROMPT.format(question=ex['question'])}]

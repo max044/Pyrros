@@ -63,9 +63,9 @@ def load_model(
     *,
     # --- Fonctionnement général ---------------------------------------------
     pretrained: bool = True,  # False → init aléatoire : idéal pour tests/CI
-    device: Union[str, torch.device, None] = None,  # "cuda:0" / "cpu" / "mps"
+    # device: Union[str, torch.device, None] = None,  # "cuda:0" / "cpu" / "mps"
     dtype: Union[torch.dtype, None] = None,  # fp32 / bf16 / etc.
-    device_map: Union[str, Dict[str, int]] = "auto",  # ignoré si `device` set
+    # device_map: Union[str, Dict[str, int]] = "auto",  # ignoré si `device` set
     # --- Quantisation / LoRA -------------------------------------------------
     bnb4bit: bool = False,
     use_qlora: bool = False,
@@ -108,9 +108,8 @@ def load_model(
     if pretrained:
         model = AutoModelForCausalLM.from_pretrained(
             name_or_path,
-            device_map=device_map if device is None else None,
-            torch_dtype=dtype
-            or (torch.bfloat16 if (not bnb4bit and str(device_map).startswith("cuda")) else torch.float32),
+            # device_map=device_map,
+            torch_dtype=dtype or (torch.bfloat16 if not bnb4bit else torch.float32),
             quantization_config=quant_cfg,
             **model_kwargs,
         )
@@ -119,8 +118,8 @@ def load_model(
         model = AutoModelForCausalLM.from_config(cfg, **model_kwargs)
 
     # Placement explicite si demandé
-    if device is not None:
-        model.to(device)
+    # if device is not None:
+    #     model.to(device)
 
     # 4) ──────────────────── (Q)LoRA
     if use_qlora:

@@ -21,7 +21,7 @@ VOLUME_PATH = "./qwen-ft"
 def upload():
     snapshot_download(repo_id="Qwen/Qwen3-0.6B", local_dir=f"{VOLUME_PATH}/weights")
 
-    dataset = load_dataset("openai/gsm8k", name="main")
+    dataset = load_dataset("openai/gsm8k", name="default")
     dataset.save_to_disk(f"{VOLUME_PATH}/data")
     print("Files uploaded successfully")
 

@@ -47,7 +47,8 @@ model, tokenizer = load_model(
 )
 
 # Charger le dataset GSM8K
-dataset = load_dataset(GSM8K_DATASET_PATH, name="main")
+dataset = load_dataset(GSM8K_DATASET_PATH, "main")
+dataset.save_to_disk("test_ds")
 train_ds = dataset["train"]
 # test_ds = dataset["test"]
 
