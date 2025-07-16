@@ -40,7 +40,7 @@ class CLI():
             common = set.intersection(*sets)
             return sorted(common)
         return []
-    
+
     def fetch_content(self, module_name: str) -> dict:
         import base64
         from pathlib import Path
@@ -120,7 +120,7 @@ class CLI():
             else:
                 self.print_help()
                 exit(1)
-            
+
     def run(self) -> None:
         self.check_args(argv)
         if self.mode == CLIMode.ADD:
@@ -159,6 +159,9 @@ class CLI():
                 self.console.print("[bold red]No modules selected for installation![/]")
                 return
 
-if __name__ == "__main__":
+def main():
     cli = CLI()
     cli.run()
+
+if __name__ == "__main__":
+    main()

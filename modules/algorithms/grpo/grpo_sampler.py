@@ -34,8 +34,6 @@ class GRPOSampler(Algorithm):
     def _group_advantages(self, rewards: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
         return (rewards - rewards.mean()) / (rewards.std() + eps)
 
-
-
     def apply(self, event, state, logger):
         ref_model = state.ref_model
         input_ids: torch.Tensor = state.batch["input_ids"]

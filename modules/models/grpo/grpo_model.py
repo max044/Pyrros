@@ -15,11 +15,9 @@ class GRPOModel(HuggingFaceModel):
 
     def loss(self, outputs, batch):
         log_probs = outputs
-        # logprobs_old = batch["logprobs_old"]
         logprobs_ref = batch["logprobs_ref"]
         advantages = batch["advantages"]
         completion_mask = batch["completion_mask"]
-        # completion_mask = completion_mask[:, -logprobs_old.size(1):]
 
         kl = self._approximate_kl_divergence(log_probs, logprobs_ref, completion_mask)
 
@@ -52,12 +50,12 @@ class GRPOModel(HuggingFaceModel):
         attention_mask: torch.Tensor
     ) -> torch.Tensor:
         """
-        Calcule les log-probabilités des tokens générés par le modèle.
+        Compute the log-probabilities of the generated tokens.
         Args:
-            sequence_ids (torch.Tensor): Les IDs de séquence des tokens générés.
-            attention_mask (torch.Tensor): Le masque d'attention.
+            sequence_ids (torch.Tensor): The IDs of the generated tokens.
+            attention_mask (torch.Tensor): The attention mask.
         Returns:
-            torch.Tensor: Les log-probabilités des tokens générés.
+            torch.Tensor: The log-probabilities of the generated tokens.
         """
         position_ids = attention_mask.long().cumsum(dim=-1) - 1
         position_ids.masked_fill_(mask=(attention_mask == 0), value=1)
