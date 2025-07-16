@@ -1,5 +1,4 @@
 from composer.core import Algorithm, Event, State
-from pyrros.models.grpo_model import GRPOModel
 from pyrros.modules.model import load_model
 from composer.distributed import parallelize_composer_model, prepare_tp_module
 
@@ -15,7 +14,7 @@ class LoadRefModel(Algorithm):
 
         ref_model, tokenizer = load_model(
             self.ref_model_name,
-            pretrained=False, # TODO: change to True when smoke test is ok
+            pretrained=True,
             device=state.device.name,
         )
         ref_model.eval()

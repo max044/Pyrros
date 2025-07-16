@@ -128,14 +128,14 @@ def load_model(
         model = _maybe_get_peft_model(model, lora_r, lora_alpha, lora_dropout)
 
     # 5) ──────────────────── Gradient checkpointing
-    if gradient_checkpointing or use_qlora:
+    if gradient_checkpointing:
         model.gradient_checkpointing_enable()
         model.config.use_cache = False
         logger.info("Gradient checkpointing activé.")
 
     # 6) ──────────────────── Wrapper GRPO
     model = GRPOModel(model=model, tokenizer=tokenizer)
-        
+
 
     logger.info(
         "Modèle « %s » prêt (pretrained=%s, QLoRA=%s, 4-bit=%s, Composer=%s).",

@@ -9,8 +9,9 @@ dependencies = [
     "datasets>=3.6.0",
     "peft>=0.16.0",
     "pytest>=8.4.1",
+    "tensorboard>=2.19.0",
     "torch==2.7.0",
-    "transformers>=4.53.1",
+    "transformers",
 ]
 
 [build-system]
@@ -22,6 +23,9 @@ build-backend = "setuptools.build_meta"
 include = ["pyrros*"]
 # -> on exclut 'recipes' qui contient des scripts, pas du code importable
 exclude = ["recipes*"]
+
+[tool.uv.sources]
+transformers = { git = "https://github.com/huggingface/transformers" }
 
 [project.optional-dependencies]
 dev = ["pytest", "peft", "bitsandbytes"]
