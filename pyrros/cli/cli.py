@@ -124,7 +124,22 @@ class CLI():
     def run(self) -> None:
         self.check_args(argv)
         if self.mode == CLIMode.ADD:
-            self.console.print(f"[bold green]Installing module:[/] [yellow]{self.target_module}[/]")
+            if not self.target_module:
+                self.console.print("[bold red]No module specified for installation![/]")
+                return
+            self.console.print(f"[bold magenta]Installing module: {self.target_module}[/]")
+            content = self.fetch_content(self.target_module)
+            wrote = False
+            if content["algorithms"]:
+                self.console.print(f"[green]Cloned files in algorithms/{self.target_module}:\n  - " + "\n  - ".join(content["algorithms"]))
+                wrote = True
+            if content["models"]:
+                self.console.print(f"[green]Cloned files in models/{self.target_module}:\n  - " + "\n  - ".join(content["models"]))
+                wrote = True
+            if wrote:
+                self.console.print(f"[bold green]Module {self.target_module} installed successfully![/]")
+            else:
+                self.console.print(f"[bold red]Module {self.target_module} not found in algorithms or models![/]")
 
         elif self.mode == CLIMode.BROWSE:
             self.console.print("[bold magenta]Welcome to Pyrros CLI![/]")
@@ -158,8 +173,8 @@ class CLI():
             else:
                 self.console.print("[bold red]No modules selected for installation![/]")
                 return
-
-def main():
+            
+def main() -> None:
     cli = CLI()
     cli.run()
 
