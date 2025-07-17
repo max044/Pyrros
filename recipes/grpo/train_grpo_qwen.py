@@ -42,8 +42,9 @@ device = "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_
 model, tokenizer = load_model(
     WEIGHT_PATH,
     pretrained=True,
-    dtype=torch.float16,
-    use_qlora=True,
+    dtype=torch.float32,
+    # dtype=torch.float16,
+    # use_qlora=True,
 )
 
 model = GRPOModel(model=model, tokenizer=tokenizer)
@@ -101,7 +102,7 @@ dataloader = DataLoader(
     collate_fn=collate_fn,
 )
 
-load_ref = LoadRefModel(ref_model_name=WEIGHT_PATH)
+load_ref = LoadRefModel(ref_model_name=WEIGHT_PATH, device=device)
 
 grpo_sampler = GRPOSampler(
     tokenizer=tokenizer,
@@ -110,6 +111,7 @@ grpo_sampler = GRPOSampler(
     generation_kwargs={
         'max_new_tokens': 1024,
         'top_p': 1.0,
+        'top_k': 50,
         'temperature': 0.6,
     },
 )

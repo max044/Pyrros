@@ -6,7 +6,7 @@ import torch
 from registry.models.grpo.grpo_model import GRPOModel
 
 class LoadRefModel(Algorithm):
-    def __init__(self, ref_model_name: str):
+    def __init__(self, ref_model_name: str, device: str):
         super().__init__(match_event=Event.AFTER_LOAD)
         self.ref_model_name = ref_model_name
 
@@ -23,7 +23,8 @@ class LoadRefModel(Algorithm):
         ref_model = GRPOModel(model=ref_model, tokenizer=tokenizer)
         ref_model.eval()
         ref_model.requires_grad_(False)
-        ref_model.to("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        device = "cuda" if device == "gpu" else device
+        ref_model.to(device)
 
         if state.tp_config is not None:
             prepare_tp_module(

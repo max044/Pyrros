@@ -9,7 +9,7 @@ QLoRA fine-tuning adapters **et** un wrapper Composer prêt à l’emploi.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 from transformers import (
@@ -91,7 +91,7 @@ def load_model(
 
     # 1) ──────────────────── Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(name_or_path, use_fast=True, **tokenizer_kwargs)
-    tokenizer.padding_side, tokenizer.truncation_side = "right", "right"
+    tokenizer.padding_side, tokenizer.truncation_side = "left", "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
