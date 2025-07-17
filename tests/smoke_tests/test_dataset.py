@@ -6,7 +6,7 @@ import torch
 from datasets import Dataset as HFDataset
 from transformers import AutoTokenizer
 
-from pyrros.modules.dataset import load_dataset
+from pyrros.utils.dataset_utils import load_dataset
 
 
 def _create_dummy_dataset(tmp_path: Path):

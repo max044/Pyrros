@@ -9,15 +9,19 @@ import copy
 from transformers import PreTrainedTokenizer
 
 # ───────── Pyrros imports ────────────────────────────────
-from pyrros.algorithms.grpo.load_ref_model import LoadRefModel
-from pyrros.algorithms.grpo.grpo_sampler import GRPOSampler
-from pyrros.algorithms.grpo.policy_snapshot import PolicySnapshot
-from pyrros.modules.model import load_model
+from registry.algorithms.grpo.load_ref_model import LoadRefModel
+from registry.algorithms.grpo.grpo_sampler import GRPOSampler
+from pyrros.utils.model_utils import load_model
+
+from registry.models.grpo.grpo_model import GRPOModel
+from pyrros.utils.reward_utils import RewardFunction
 # ────────────────────────────────────────────────────────
 
 
-def no_reward(comletion_ids: Sequence[str], **kwargs) -> torch.Tensor:
-    return torch.zeros(len(comletion_ids))
+class NoReward(RewardFunction):
+    """Stub reward function that returns zero rewards."""
+    def __call__(self, completions: Sequence[str], completions_ids: Sequence[str], prompts: Sequence[dict], answers: Sequence[str]) -> torch.Tensor:
+        return torch.zeros(len(completions), dtype=torch.float32)
 
 # ---------- 1. Dataset « prompt-only » -------------------
 class FakePromptDataset(Dataset):
@@ -56,6 +60,9 @@ def make_collate_fn(tokenizer: PreTrainedTokenizer, max_len: int = 32):
             "input_ids": enc.input_ids,
             "labels":    enc.input_ids.clone(),
             "attention_mask": enc.attention_mask,
+
+            "prompts": ["" for _ in batch],
+            "answers": ["" for _ in batch],
         }
     return _collate
 
@@ -68,9 +75,9 @@ def test_grpo_smoke(device: str):
     model, tokenizer = load_model(
         "Qwen/Qwen1.5-0.5B",
         pretrained=False,
-        device=device,
         dtype=torch.float32,
     )
+    model = GRPOModel(model=model, tokenizer=tokenizer)
 
     # (b) DataLoader factice
     ds = FakePromptDataset(length=4)
@@ -82,21 +89,13 @@ def test_grpo_smoke(device: str):
     )
 
     # (c) Algorithme
-
     load_ref_model = LoadRefModel(ref_model_name="Qwen/Qwen1.5-0.5B")
 
     grpo_sampler = GRPOSampler(
         tokenizer=tokenizer,
-        reward_fns=[no_reward, no_reward],  # stub rewards
+        reward_fns=[NoReward(), NoReward()],  # stub rewards
         G=2,  # 2 samples per prompt
     )
-
-    # pas de PolicySnapshot si pas de old_model
-    # policy_snapshot = PolicySnapshot(
-    #     sampler_algo=grpo_sampler
-    # )
-
-
 
     # (d) Trainer Composer – 2 batches
     trainer = Trainer(

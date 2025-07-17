@@ -19,11 +19,10 @@ from transformers import (
     BitsAndBytesConfig,
 )
 import transformers
-from pyrros.models.grpo.grpo_model import GRPOModel
 
 # — PEFT (facultatif) --------------------------------------------------------
 try:
-    from peft import LoraConfig, get_peft_model
+    from peft import LoraConfig, get_peft_model, PeftModel
 except ImportError:  # LoRA/QLoRA optionnels
     LoraConfig = None  # type: ignore
     get_peft_model = None  # type: ignore
@@ -54,7 +53,6 @@ def _maybe_get_peft_model(model, r: int, alpha: int, dropout: float):
     )
     return get_peft_model(model, lora_cfg)
 
-
 # --------------------------------------------------------------------------- #
 # API principale                                                              #
 # --------------------------------------------------------------------------- #
@@ -74,7 +72,13 @@ def load_model(
     gradient_checkpointing: bool = False,
     tokenizer_kwargs: Dict[str, Any] | None = None,
     model_kwargs: Dict[str, Any] | None = None,
-) -> Tuple["GRPOModel", "transformers.PreTrainedTokenizer"]:
+) -> tuple[
+        transformers.PreTrainedModel,
+        Optional[Union[
+            transformers.PreTrainedTokenizer,
+            transformers.PreTrainedTokenizerFast,
+        ]],
+    ]:
     """
     Charge un modèle CausalLM (HF) + son tokenizer, avec options :
 
@@ -129,9 +133,6 @@ def load_model(
         model.gradient_checkpointing_enable()
         model.config.use_cache = False
         logger.info("Gradient checkpointing activé.")
-
-    # 6) ──────────────────── Wrapper GRPO
-    model = GRPOModel(model=model, tokenizer=tokenizer)
 
 
     logger.info(

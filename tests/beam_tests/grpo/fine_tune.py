@@ -1,4 +1,5 @@
 from beam import Volume, Image, function
+from registry.models.grpo.grpo_model import GRPOModel
 
 # Le chemin de montage sur le volume Beam
 MOUNT_PATH = "./qwen-ft"
@@ -60,6 +61,7 @@ def qwen_fine_tune_grpo():
         lora_r=8,
         lora_alpha=16,
     )
+    model = GRPOModel(model=model, tokenizer=tokenizer)
 
     dataset = load_from_disk(GSM8K_DATASET_PATH)
     train_ds = dataset["train"]
@@ -93,13 +95,10 @@ def qwen_fine_tune_grpo():
     )
 
     def collate_fn(examples):
-        # ex['input_ids'] et ex['attention_mask'] sont déjà des listes d'entiers
         input_ids = torch.tensor([ex['input_ids'] for ex in examples], dtype=torch.long)
-        print(f"Input IDs shape: {input_ids.shape}")
         attention_mask = torch.tensor([ex['attention_mask'] for ex in examples], dtype=torch.long)
         labels = input_ids.clone()
 
-        # gardez vos prompts/completions pour les reward functions
         prompts = [ex['prompts'] for ex in examples]
         answers = [ex['answers'] for ex in examples]
 

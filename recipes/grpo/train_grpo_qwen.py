@@ -5,6 +5,7 @@ from datasets import load_dataset
 from pyrros.utils.model_utils import load_model
 from registry.algorithms.grpo.load_ref_model import LoadRefModel
 from registry.algorithms.grpo.grpo_sampler import GRPOSampler
+from registry.models.grpo.grpo_model import GRPOModel
 from .rewards import FormatReward, MathAnswerReward
 from composer import Trainer
 from torch import optim
@@ -44,6 +45,8 @@ model, tokenizer = load_model(
     dtype=torch.float16,
     use_qlora=True,
 )
+
+model = GRPOModel(model=model, tokenizer=tokenizer)
 
 dataset = load_dataset(GSM8K_DATASET_PATH, "main")
 train_ds = dataset["train"]

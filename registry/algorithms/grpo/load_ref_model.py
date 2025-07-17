@@ -1,7 +1,9 @@
 from composer.core import Algorithm, Event, State
-from pyrros.modules.model import load_model
+from pyrros.utils.model_utils import load_model
 from composer.distributed import parallelize_composer_model, prepare_tp_module
 import torch
+
+from registry.models.grpo.grpo_model import GRPOModel
 
 class LoadRefModel(Algorithm):
     def __init__(self, ref_model_name: str):
@@ -17,8 +19,8 @@ class LoadRefModel(Algorithm):
             self.ref_model_name,
             pretrained=True,
             dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-            # device=state.device.name,
         )
+        ref_model = GRPOModel(model=ref_model, tokenizer=tokenizer)
         ref_model.eval()
         ref_model.requires_grad_(False)
         ref_model.to("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")

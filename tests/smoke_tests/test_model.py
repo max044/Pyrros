@@ -4,7 +4,7 @@ import pytest
 import torch
 from transformers import AutoTokenizer
 
-from pyrros.modules.model import load_model
+from pyrros.utils.model_utils import load_model
 
 _TINY_MODEL = "Qwen/Qwen3-0.6B"
 
@@ -22,7 +22,6 @@ def test_load_model_qlora(use_qlora):
     model, _ = load_model(
         _TINY_MODEL,
         use_qlora=use_qlora,
-        device_map={"": "cpu"},
     )
     # PEFT wraps model into PeftModel
     from peft import PeftModel
