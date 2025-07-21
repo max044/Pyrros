@@ -1,5 +1,5 @@
 """
-Utilities to load a causal language model with optional 4-bit quantisation,
+Utilities to load a causal language model with optional 4-bit quantization,
 QLoRA fine-tuning adapters **et** un wrapper Composer prêt à l’emploi.
 
 • Fonctionne en production (poids pré-entraînés, CUDA, bfloat16, QLoRA…)
@@ -37,7 +37,21 @@ __all__: list[str] = ["load_model"]
 # Helpers                                                                     #
 # --------------------------------------------------------------------------- #
 def _maybe_get_peft_model(model, r: int, alpha: int, dropout: float):
-    """Wrap `model` with PEFT-LoRA adapters si PEFT est dispo."""
+    """
+    Wrap the base model with PEFT LoRA adapters if PEFT is installed.
+
+    Args:
+        model: The base HuggingFace model to wrap.
+        r: LoRA rank.
+        alpha: LoRA scaling factor.
+        dropout: Dropout rate for LoRA layers.
+
+    Returns:
+        A PEFT-wrapped model instance.
+
+    Raises:
+        RuntimeError: If PEFT is not installed.
+    """
     if LoraConfig is None or get_peft_model is None:
         raise RuntimeError(
             "PEFT n’est pas installé – `pip install peft` pour activer QLoRA/LoRA."
@@ -53,6 +67,7 @@ def _maybe_get_peft_model(model, r: int, alpha: int, dropout: float):
     )
     return get_peft_model(model, lora_cfg)
 
+
 # --------------------------------------------------------------------------- #
 # API principale                                                              #
 # --------------------------------------------------------------------------- #
@@ -62,7 +77,7 @@ def load_model(
     # --- Fonctionnement général ---------------------------------------------
     pretrained: bool = True,  # False → init aléatoire : idéal pour tests/CI
     dtype: Union[torch.dtype, None] = None,  # fp32 / bf16 / etc.
-    # --- Quantisation / LoRA -------------------------------------------------
+    # --- quantization / LoRA -------------------------------------------------
     bnb4bit: bool = False,
     use_qlora: bool = False,
     lora_r: int = 64,
@@ -73,29 +88,46 @@ def load_model(
     tokenizer_kwargs: Dict[str, Any] | None = None,
     model_kwargs: Dict[str, Any] | None = None,
 ) -> tuple[
-        transformers.PreTrainedModel,
-        Optional[Union[
+    transformers.PreTrainedModel,
+    Optional[
+        Union[
             transformers.PreTrainedTokenizer,
             transformers.PreTrainedTokenizerFast,
-        ]],
-    ]:
+        ]
+    ],
+]:
     """
-    Charge un modèle CausalLM (HF) + son tokenizer, avec options :
+    Load a causal language model and its tokenizer, with optional 4-bit NF4 quantization
+    and QLoRA adapters, ready for Composer or HF training.
 
-    • `pretrained=False`  → configuration + poids aléatoires (smoke-test quick)
-    • `bnb4bit=True`      → BitsAndBytes 4-bit nf4
-    • `use_qlora=True`    → ajout d’adapters LoRA
+    Args:
+        name_or_path: HF model identifier or local path.
+        pretrained: If False, initialize weights randomly for smoke tests.
+        dtype: Torch dtype (e.g. fp32, bf16). Defaults to bf16 when using 4-bit.
+        bnb4bit: Enable BitsAndBytes 4-bit NF4 quantization.
+        use_qlora: Wrap model with LoRA adapters (requires PEFT).
+        lora_r: LoRA rank.
+        lora_alpha: LoRA scaling factor.
+        lora_dropout: Dropout rate for LoRA.
+        gradient_checkpointing: Enable checkpointing to save memory.
+        tokenizer_kwargs: Extra kwargs for the tokenizer.
+        model_kwargs: Extra kwargs for the model loader.
+
+    Returns:
+        A tuple `(model, tokenizer)`. The tokenizer’s pad token is set to EOS if missing.
     """
     tokenizer_kwargs = tokenizer_kwargs or {}
     model_kwargs = model_kwargs or {}
 
     # 1) ──────────────────── Tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(name_or_path, use_fast=True, **tokenizer_kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(
+        name_or_path, use_fast=True, **tokenizer_kwargs
+    )
     tokenizer.padding_side, tokenizer.truncation_side = "left", "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # 2) ──────────────────── Config quantisation
+    # 2) ──────────────────── Config quantization
     quant_cfg = None
     if bnb4bit:
         quant_cfg = BitsAndBytesConfig(
@@ -119,13 +151,14 @@ def load_model(
         cfg = AutoConfig.from_pretrained(name_or_path)
         model = AutoModelForCausalLM.from_config(cfg, **model_kwargs)
 
-    # Placement explicite si demandé
-    # if device is not None:
-    #     model.to(device)
-
     # 4) ──────────────────── (Q)LoRA
     if use_qlora:
-        logger.info("Ajout d’adapters QLoRA (r=%d, α=%d, dropout=%.2f).", lora_r, lora_alpha, lora_dropout)
+        logger.info(
+            "Ajout d’adapters QLoRA (r=%d, α=%d, dropout=%.2f).",
+            lora_r,
+            lora_alpha,
+            lora_dropout,
+        )
         model = _maybe_get_peft_model(model, lora_r, lora_alpha, lora_dropout)
 
     # 5) ──────────────────── Gradient checkpointing
@@ -133,7 +166,6 @@ def load_model(
         model.gradient_checkpointing_enable()
         model.config.use_cache = False
         logger.info("Gradient checkpointing activé.")
-
 
     logger.info(
         "Modèle « %s » prêt (pretrained=%s, QLoRA=%s, 4-bit=%s, Composer=%s).",

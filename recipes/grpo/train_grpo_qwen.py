@@ -36,7 +36,11 @@ USER_PROMPT = (
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-device = "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+device = (
+    "gpu"
+    if torch.cuda.is_available()
+    else "mps" if torch.backends.mps.is_available() else "cpu"
+)
 
 
 model, tokenizer = load_model(
@@ -53,9 +57,22 @@ dataset = load_dataset(GSM8K_DATASET_PATH, "main")
 train_ds = dataset["train"]
 # test_ds = dataset["test"]
 
+
 def prepare_example(ex):
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": USER_PROMPT.format(question=ex['question'])}]
-    answers = ex['answer']
+    """
+    Tokenize a single GSM8K example into model inputs for chat generation.
+
+    Args:
+        ex: A dataset item with keys `question` and `answer`.
+
+    Returns:
+        A dict with input_ids, attention_mask, prompts list, and answers.
+    """
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": USER_PROMPT.format(question=ex["question"])},
+    ]
+    answers = ex["answer"]
     tokenized = tokenizer.apply_chat_template(
         messages,
         tokenize=True,
@@ -74,26 +91,41 @@ def prepare_example(ex):
         "answers": answers,
     }
 
+
 tokenized = train_ds.map(
     lambda ex: prepare_example(ex),
     batched=False,
 )
 
+
 def collate_fn(examples):
-    input_ids = torch.tensor([ex['input_ids'] for ex in examples], dtype=torch.long)
-    attention_mask = torch.tensor([ex['attention_mask'] for ex in examples], dtype=torch.long)
+    """
+    Custom collate for batching prepared examples.
+
+    Args:
+        examples: List of dicts from `prepare_example`.
+
+    Returns:
+        A batch dict with tensors `input_ids`, `attention_mask`, `labels`
+        and Python lists `prompts`, `answers`.
+    """
+    input_ids = torch.tensor([ex["input_ids"] for ex in examples], dtype=torch.long)
+    attention_mask = torch.tensor(
+        [ex["attention_mask"] for ex in examples], dtype=torch.long
+    )
     labels = input_ids.clone()
 
-    prompts = [ex['prompts'] for ex in examples]
-    answers = [ex['answers'] for ex in examples]
+    prompts = [ex["prompts"] for ex in examples]
+    answers = [ex["answers"] for ex in examples]
 
     return {
-        'input_ids': input_ids,
-        'attention_mask': attention_mask,
-        'labels': labels,
-        'prompts': prompts,
-        'answers': answers,
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+        "labels": labels,
+        "prompts": prompts,
+        "answers": answers,
     }
+
 
 dataloader = DataLoader(
     tokenized,
@@ -109,16 +141,16 @@ grpo_sampler = GRPOSampler(
     reward_fns=[FormatReward(), MathAnswerReward()],
     G=2,
     generation_kwargs={
-        'max_new_tokens': 1024,
-        'top_p': 1.0,
-        'top_k': 50,
-        'temperature': 0.6,
+        "max_new_tokens": 1024,
+        "top_p": 1.0,
+        "top_k": 50,
+        "temperature": 0.6,
     },
 )
 
 train_data_spec = DataSpec(
     dataloader,
-    get_num_samples_in_batch=lambda batch: batch['input_ids'].shape[0],
+    get_num_samples_in_batch=lambda batch: batch["input_ids"].shape[0],
 )
 
 trainer = Trainer(

@@ -26,12 +26,14 @@ def test_load_model_qlora(use_qlora):
     # PEFT wraps model into PeftModel
     from peft import PeftModel
 
-    assert isinstance(model, PeftModel), "Model should be wrapped by PEFT when use_qlora=True"
+    assert isinstance(
+        model, PeftModel
+    ), "Model should be wrapped by PEFT when use_qlora=True"
 
 
 @pytest.mark.parametrize("bnb4bit", [True])
 def test_load_model_4bit(bnb4bit):
-    """4‑bit NF4 quantisation loads when bitsandbytes is available."""
+    """4-bit NF4 quantization loads when bitsandbytes is available."""
     bnb = pytest.importorskip("bitsandbytes")  # noqa: F841 – imported for skip only
     model, _ = load_model(
         _TINY_MODEL,
@@ -46,4 +48,4 @@ def test_load_model_4bit(bnb4bit):
         if isinstance(module, bnb.nn.Linear4bit):
             linear_found = True
             break
-    assert linear_found, "No 4‑bit Linear layers found – quantisation may have failed"
+    assert linear_found, "No 4-bit Linear layers found – quantization may have failed"

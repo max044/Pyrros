@@ -5,15 +5,28 @@ import torch
 
 from registry.models.grpo.grpo_model import GRPOModel
 
+
 class LoadRefModel(Algorithm):
+    """
+    Composer algorithm that, after loading the main model, also loads
+    a frozen reference model for KL computations.
+    """
+
     def __init__(self, ref_model_name: str, device: str):
         super().__init__(match_event=Event.AFTER_LOAD)
         self.ref_model_name = ref_model_name
 
     def match(self, event, state):
+        """
+        Trigger after model load (AFTER_LOAD).
+        """
         return event == Event.AFTER_LOAD
 
     def apply(self, event, state: State, logger):
+        """
+        Load the reference model in eval mode, disable gradients, and
+        move to the appropriate device or parallel context.
+        """
 
         ref_model, tokenizer = load_model(
             self.ref_model_name,

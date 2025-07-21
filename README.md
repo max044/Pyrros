@@ -18,10 +18,20 @@ It combines:
 
 > The project is under early development. First training scripts for Qwen + GRPO + QLoRA coming soon.
 
-## 🛠️ Installation
+## 🛠️ Installation for development
 
 ```bash
 git clone https://github.com/max044/Pyrros.git
 cd Pyrros
 uv sync
+```
+
+## Install Pyrros
+
+**with uv**
+```bash
+uv init
+uv venv --python 3.10
+source .venv/bin/activate
+uv add Pyrros or uv add "Pyrros @ git+https://github.com/max044/Pyrros.git"
 ```

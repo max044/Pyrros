@@ -28,4 +28,6 @@ def test_load_dataset_tokenise(tmp_path):
 
     sample = tokenised[0]
     assert isinstance(sample["input_ids"], torch.Tensor)
-    assert sample["input_ids"].shape[0] == 16, "Sequence length should be padded/truncated to seq_len"
+    assert (
+        sample["input_ids"].shape[0] == 16
+    ), "Sequence length should be padded/truncated to seq_len"

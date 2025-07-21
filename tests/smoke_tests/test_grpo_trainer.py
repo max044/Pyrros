@@ -15,13 +15,22 @@ from pyrros.utils.model_utils import load_model
 
 from registry.models.grpo.grpo_model import GRPOModel
 from pyrros.utils.reward_utils import RewardFunction
+
 # ────────────────────────────────────────────────────────
 
 
 class NoReward(RewardFunction):
     """Stub reward function that returns zero rewards."""
-    def __call__(self, completions: Sequence[str], completions_ids: Sequence[str], prompts: Sequence[dict], answers: Sequence[str]) -> torch.Tensor:
+
+    def __call__(
+        self,
+        completions: Sequence[str],
+        completions_ids: Sequence[str],
+        prompts: Sequence[dict],
+        answers: Sequence[str],
+    ) -> torch.Tensor:
         return torch.zeros(len(completions), dtype=torch.float32)
+
 
 # ---------- 1. Dataset « prompt-only » -------------------
 class FakePromptDataset(Dataset):
@@ -36,7 +45,10 @@ class FakePromptDataset(Dataset):
 
     def __getitem__(self, idx):
         prompt = f"n.{idx} J'aime le chocolat et toi ?"
-        return [{"role": "system", "content": "tu es un gentil assistant"}, {"role": "user", "content": prompt}]
+        return [
+            {"role": "system", "content": "tu es un gentil assistant"},
+            {"role": "user", "content": prompt},
+        ]
 
 
 # ---------- 2. Collate -----------------------------------
@@ -58,12 +70,12 @@ def make_collate_fn(tokenizer: PreTrainedTokenizer, max_len: int = 32):
 
         return {
             "input_ids": enc.input_ids,
-            "labels":    enc.input_ids.clone(),
+            "labels": enc.input_ids.clone(),
             "attention_mask": enc.attention_mask,
-
             "prompts": ["" for _ in batch],
             "answers": ["" for _ in batch],
         }
+
     return _collate
 
 
@@ -109,4 +121,4 @@ def test_grpo_smoke(device: str):
         loggers=[],
     )
 
-    trainer.fit()    # Test réussi si aucune exception n’est levée
+    trainer.fit()  # Test réussi si aucune exception n’est levée

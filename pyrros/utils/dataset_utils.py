@@ -1,4 +1,4 @@
-'''Dataset loading & tokenisation helpers.'''
+"""Dataset loading & tokenisation helpers."""
 
 from __future__ import annotations
 
@@ -6,31 +6,54 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
 
-from datasets import load_dataset as hf_load_dataset, load_from_disk, Dataset, IterableDataset, DatasetDict
+from datasets import (
+    load_dataset as hf_load_dataset,
+    load_from_disk,
+    Dataset,
+    IterableDataset,
+    DatasetDict,
+)
 
 logger = logging.getLogger(__name__)
 
 __all__: list[str] = [
-    'load_dataset',
+    "load_dataset",
 ]
 
 
 def load_dataset(
     name_or_path: str,
     *,
-    split: str = 'train',
+    split: str = "train",
     streaming: bool = False,
     max_samples: Optional[int] = None,
     tokenizer=None,
     seq_len: int = 2048,
-    text_field: str = 'text',
+    text_field: str = "text",
     seed: int = 42,
     loader_kwargs: Dict[str, Any] | None = None,
 ) -> Union[Dataset, IterableDataset]:
-    '''Load a dataset (local folder or HF Hub) and tokenise it with *tokenizer*.
+    """
+    Load a Hugging Face or on-disk dataset and optionally tokenize it.
 
-    If *tokenizer* is ``None``, returns the raw dataset / stream.
-    '''
+    If `name_or_path` points to a local directory, uses `load_from_disk`.
+    Otherwise fetches from the HF Hub. Can stream or load in full, subsample,
+    and apply a tokenizer to truncate/pad to `seq_len`.
+
+    Args:
+        name_or_path: Local path or HF dataset identifier.
+        split: Split name to load (e.g. "train").
+        streaming: Whether to return an IterableDataset.
+        max_samples: If set and not streaming, select only this many examples.
+        tokenizer: A Hugging Face tokenizer; if None, returns raw text.
+        seq_len: Maximum token length (with padding).
+        text_field: Field in dataset dict containing raw text.
+        seed: Random seed for train/test split fallback.
+        loader_kwargs: Extra kwargs for HF loader.
+
+    Returns:
+        A `Dataset` or `IterableDataset`, tokenized if `tokenizer` is provided.
+    """
 
     loader_kwargs = loader_kwargs or {}
 
@@ -40,22 +63,27 @@ def load_dataset(
         data = load_from_disk(name_or_path, **loader_kwargs)
     else:
         logger.info("Fetching dataset '%s' from the HF Hub", name_or_path)
-        data = hf_load_dataset(name_or_path, split=None if streaming else split, streaming=streaming, **loader_kwargs)
+        data = hf_load_dataset(
+            name_or_path,
+            split=None if streaming else split,
+            streaming=streaming,
+            **loader_kwargs,
+        )
 
     # 2) Ensure split availability ----------------------------------------
     if isinstance(data, DatasetDict):
         if split not in data:
-            data = data['train'].train_test_split(test_size=0.1, seed=seed)
+            data = data["train"].train_test_split(test_size=0.1, seed=seed)
         data = data[split]
 
     # 3) Subsample for quick runs -----------------------------------------
     if max_samples is not None and not streaming:
-        logger.info('Sub‑selecting first %d samples.', max_samples)
+        logger.info("Sub-selecting first %d samples.", max_samples)
         data = data.select(range(max_samples))
 
     # 4) Early return if no tokenizer -------------------------------------
     if tokenizer is None:
-        logger.warning('No tokenizer provided – returning raw dataset.')
+        logger.warning("No tokenizer provided – returning raw dataset.")
         return data
 
     # 5) Tokenisation ------------------------------------------------------
@@ -64,7 +92,7 @@ def load_dataset(
             batch[text_field],
             truncation=True,
             max_length=seq_len,
-            padding='max_length',
+            padding="max_length",
         )
 
     tokenised = data.map(
@@ -74,6 +102,10 @@ def load_dataset(
         num_proc=None if streaming else 4,
     )
 
-    tokenised.set_format(type='torch', columns=['input_ids', 'attention_mask'])
-    logger.info('Dataset ready: %s samples (streaming=%s).', len(tokenised) if not streaming else '∞', streaming)
+    tokenised.set_format(type="torch", columns=["input_ids", "attention_mask"])
+    logger.info(
+        "Dataset ready: %s samples (streaming=%s).",
+        len(tokenised) if not streaming else "∞",
+        streaming,
+    )
     return tokenised

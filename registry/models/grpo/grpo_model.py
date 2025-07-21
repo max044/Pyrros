@@ -2,18 +2,45 @@ from typing import Union
 from composer.models import HuggingFaceModel
 import torch, torch.nn.functional as F
 
+
 class GRPOModel(HuggingFaceModel):
+    """
+    Composer wrapper for a causal LM supporting GRPO loss and KL penalty.
+    """
+
     def __init__(self, model, tokenizer, epsilon=0.2, beta=0.02):
+        """
+        Initialize with clipping epsilon and KL weight beta.
+        """
+
         super().__init__(model=model, tokenizer=tokenizer)
         self.epsilon, self.beta = epsilon, beta
 
     def forward(self, batch):
+        """
+        Compute log-probabilities of generated token sequences.
+
+        Returns:
+            Tensor of shape (batch_size * G, sequence_length).
+        """
+
         sequence_ids = batch["sequence_ids"]
         attention_mask = batch["attention_mask"]
         log_probs = self.compute_log_probs(sequence_ids, attention_mask)
         return log_probs
 
     def loss(self, outputs, batch):
+        """
+        Compute GRPO loss: clipped policy gradient surrogate plus KL regularization.
+
+        Args:
+            outputs: Log-probs from forward().
+            batch: Dict containing `logprobs_ref`, `advantages`, and `completion_mask`.
+
+        Returns:
+            A tensor of per-example loss values, aggregated over tokens.
+        """
+
         log_probs = outputs
         logprobs_ref = batch["logprobs_ref"]
         advantages = batch["advantages"]
@@ -26,18 +53,38 @@ class GRPOModel(HuggingFaceModel):
         # Compute the loss
         ratio = (log_probs - logprobs_old).exp()
         surrogate_loss = ratio * advantages.unsqueeze(-1)
-        surrogate_loss_clipped = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantages.unsqueeze(-1)
+        surrogate_loss_clipped = torch.clamp(
+            ratio, 1 - self.epsilon, 1 + self.epsilon
+        ) * advantages.unsqueeze(-1)
         loss = -torch.min(surrogate_loss, surrogate_loss_clipped) + self.beta * kl
 
         if completion_mask is not None:
-            loss = (loss * completion_mask).sum() / completion_mask.sum(axis=-1).clamp(min=1.0)
+            loss = (loss * completion_mask).sum() / completion_mask.sum(axis=-1).clamp(
+                min=1.0
+            )
         else:
             loss = loss.mean(axis=-1)
 
         return loss
 
+    def _approximate_kl_divergence(
+        self,
+        logp: torch.Tensor,
+        logp_ref: torch.Tensor,
+        completion_mask: Union[torch.Tensor, None] = None,
+    ) -> torch.Tensor:
+        """
+        Compute element-wise approximate KL divergence: exp(Δ) - Δ - 1.
 
-    def _approximate_kl_divergence(self, logp: torch.Tensor, logp_ref: torch.Tensor, completion_mask: Union[torch.Tensor, None] = None) -> torch.Tensor:
+        Args:
+            logp: Current model log-probs.
+            logp_ref: Reference model log-probs.
+            completion_mask: Mask for only generated tokens.
+
+        Returns:
+            A tensor of KL divergences per token.
+        """
+
         log_ratio = logp_ref.float() - logp.float()
         if completion_mask is not None:
             log_ratio = log_ratio * completion_mask
@@ -45,22 +92,18 @@ class GRPOModel(HuggingFaceModel):
         return log_ratio.exp() - log_ratio - 1
 
     def compute_log_probs(
-        self,
-        sequence_ids: torch.Tensor,
-        attention_mask: torch.Tensor
+        self, sequence_ids: torch.Tensor, attention_mask: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute the log-probabilities of the generated tokens.
-        Args:
-            sequence_ids (torch.Tensor): The IDs of the generated tokens.
-            attention_mask (torch.Tensor): The attention mask.
+        Calculate log-probabilities of each token in `sequence_ids` given `attention_mask`.
+
         Returns:
-            torch.Tensor: The log-probabilities of the generated tokens.
+            A tensor of shape (batch_size * G, sequence_length - 1).
         """
+
         position_ids = attention_mask.long().cumsum(dim=-1) - 1
         position_ids.masked_fill_(mask=(attention_mask == 0), value=1)
 
-        # place ids on model device
         sequence_ids = sequence_ids.to(self.model.device)
         attention_mask = attention_mask.to(self.model.device)
         position_ids = position_ids.to(self.model.device)
@@ -72,7 +115,6 @@ class GRPOModel(HuggingFaceModel):
             use_cache=False,
         )
         logits = output["logits"]
-
 
         logits = logits[:, :-1].to(torch.float32)
         output_ids = sequence_ids[:, 1:]

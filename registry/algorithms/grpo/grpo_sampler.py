@@ -5,6 +5,11 @@ from composer.core import Algorithm, Event
 from transformers import GenerationConfig, PreTrainedTokenizer
 
 class GRPOSampler(Algorithm):
+    """
+    Composer algorithm for GRPO: generates multiple rollouts, computes rewards,
+    advantages, and prepares training batch fields.
+    """
+
     def __init__(self, tokenizer: PreTrainedTokenizer, reward_fns, G, generation_kwargs: dict = None):
         self.tokenizer = tokenizer
         self.reward_fns = reward_fns
@@ -12,6 +17,9 @@ class GRPOSampler(Algorithm):
         self.generation_kwargs = generation_kwargs or {}
 
     def match(self, event: Event, state: State):
+        """
+        Activate before each forward pass (BEFORE_FORWARD) to sample completions.
+        """
         return event == Event.BEFORE_FORWARD
 
     def _compute_rewards(
@@ -22,6 +30,12 @@ class GRPOSampler(Algorithm):
         answers,
         logger: Logger,
     ) -> torch.Tensor:
+        """
+        Compute and log rewards from each RewardFunction, then sum per example.
+
+        Returns:
+            A tensor of shape (batch_size * G,) with summed rewards.
+        """
         
         # 1. Call each reward function
         list_of_rewards = [
@@ -52,9 +66,18 @@ class GRPOSampler(Algorithm):
 
 
     def _group_advantages(self, rewards: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+        """
+        Standardize rewards to create advantages: (r − mean) / (std + eps).
+        """
+
         return (rewards - rewards.mean()) / (rewards.std() + eps)
 
     def apply(self, event: Event, state: State, logger: Logger):
+        """
+        On BEFORE_FORWARD, duplicate prompts, generate rollouts, compute rewards,
+        advantages, reference log-probs, and replace `state.batch` accordingly.
+        """
+        
         ref_model = state.ref_model
         input_ids: torch.Tensor = state.batch["input_ids"]
         attention_mask: torch.Tensor = state.batch["attention_mask"]
@@ -120,11 +143,11 @@ class GRPOSampler(Algorithm):
         logger.log_metrics({
             "rewards/reward_mean": rewards.mean().item(),
             "rewards/reward_std": rewards.std().item(),
+            
             "completions/max_length": max(all_lengths),
             "completions/mean_length": sum(all_lengths) / len(all_lengths),
             "completions/min_length": min(all_lengths),
 
-            # Safe: only if there is at least one terminated completion
             "completions/max_terminated_length": max(terminated_lengths) if terminated_lengths else 0,
             "completions/mean_terminated_length": sum(terminated_lengths) / len(terminated_lengths) if terminated_lengths else 0,
             "completions/min_terminated_length": min(terminated_lengths) if terminated_lengths else 0,

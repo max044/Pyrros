@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class RewardFunction(ABC):
     """
     Base class for GRPO reward functions.
@@ -22,12 +23,12 @@ class RewardFunction(ABC):
         completions_ids=None,
         prompts=None,
         answers=None,
-        **kwargs
+        **kwargs,
     ) -> list[float]:
         """
-        Computes the reward for each example in the batch.
+        Compute per-example rewards.
 
         Returns:
-            A list of floats, one per example.
+            A list of floats, one reward per example in the batch.
         """
         pass
