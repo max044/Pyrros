@@ -9,6 +9,7 @@ from pyrros.utils.model_utils import load_model
 _TINY_MODEL = "Qwen/Qwen3-0.6B"
 
 
+@pytest.mark.smoke
 def test_load_model_basic():
     """Model loads and returns objects on CPU by default."""
     model, tok = load_model(_TINY_MODEL, device_map={"": "cpu"})
@@ -16,6 +17,7 @@ def test_load_model_basic():
 
 
 @pytest.mark.parametrize("use_qlora", [True])
+@pytest.mark.smoke
 def test_load_model_qlora(use_qlora):
     """QLoRA wrapper attaches PEFT adapters when available."""
     peft = pytest.importorskip("peft")  # skip if PEFT not installed
@@ -32,6 +34,7 @@ def test_load_model_qlora(use_qlora):
 
 
 @pytest.mark.parametrize("bnb4bit", [True])
+@pytest.mark.smoke
 def test_load_model_4bit(bnb4bit):
     """4-bit NF4 quantization loads when bitsandbytes is available."""
     bnb = pytest.importorskip("bitsandbytes")  # noqa: F841 – imported for skip only

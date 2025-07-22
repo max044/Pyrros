@@ -5,7 +5,6 @@
 ## 🔜 TODO
 
 - [ ] **Implement `trainer/sft.py`**
-- [ ] **Build unit tests**
 - [ ] **Verify all features**
       LoRA, gradient accumulation, eval, early stopping, etc.
 
@@ -26,16 +25,15 @@
 
 ## 🟡 DOING
 
-- [ ] **Clean and comment code**
-- [ ] **GRPO recipe**
-      GRPO + QLoRA on Qwen. Work in progress: cleanup, eval, reward config.
+- [ ] **Build unit tests**
 - [ ] **Interactive CLI (arrow-based UX)**
-      Shadcn like
 
 ---
 
 ## ✅ DONE
 
+- [x] **Clean and comment code**
+- [x] **GRPO recipe**
 - [x] **Loggers**
 - [x] **Basic CLI**
 - [x] **GRPO trainer implementation**

@@ -10,7 +10,10 @@ dependencies = [
     "dotenv>=0.9.9",
     "peft>=0.16.0",
     "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
     "questionary>=2.1.0",
+    "responses>=0.25.7",
     "rich>=13.9.4",
     "tensorboard>=2.19.0",
     "torch==2.7.0",
@@ -35,3 +38,11 @@ dev = ["pytest", "peft", "bitsandbytes"]
 
 [project.scripts]
 pyrros = "pyrros.cli.cli:main"
+
+[tool.pytest.ini_options]
+markers = [
+  "unit:      fine-grained, fast checks of isolated functions",
+  "smoke:     end-to-end minimal runs (fast but integration)",
+  "gpu:       requires a CUDA device",
+  "slow:      > 5 s or heavy downloads",
+]

@@ -7,7 +7,7 @@ from datasets import Dataset as HFDataset
 from transformers import AutoTokenizer
 
 from pyrros.utils.dataset_utils import load_dataset
-
+import pytest
 
 def _create_dummy_dataset(tmp_path: Path):
     """Create a small HF dataset on disk and return its path."""
@@ -17,6 +17,7 @@ def _create_dummy_dataset(tmp_path: Path):
     return str(local_dir)
 
 
+@pytest.mark.smoke
 def test_load_dataset_tokenise(tmp_path):
     tok = AutoTokenizer.from_pretrained("openai-community/gpt2")
     if tok.pad_token is None:

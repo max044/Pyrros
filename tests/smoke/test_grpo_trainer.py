@@ -81,6 +81,7 @@ def make_collate_fn(tokenizer: PreTrainedTokenizer, max_len: int = 32):
 
 # ---------- 3. Test --------------------------------------
 @pytest.mark.parametrize("device", ["mps"])
+@pytest.mark.smoke
 def test_grpo_smoke(device: str):
     """Boucle GRPO complète sur 2 batches, 100 % CPU."""
     # (a) Policy courante π_θ + tokenizer  (wrapper Composer)
