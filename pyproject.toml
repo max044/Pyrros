@@ -18,6 +18,7 @@ dependencies = [
     "tensorboard>=2.19.0",
     "torch==2.7.0",
     "transformers",
+    "typer>=0.16.0",
 ]
 
 [build-system]

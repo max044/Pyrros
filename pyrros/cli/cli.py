@@ -1,119 +1,138 @@
+#!/usr/bin/env python3
+# pyrros/cli/cli.py
+
 import os
 import json
 from pathlib import Path
-from typing import List, Dict
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 import typer
 import questionary
 import requests
 from rich.console import Console
-from dotenv import load_dotenv
+from typer import Context
 
-# Init Typer app
-typing_app = typer.Typer(help="CLI de gestion des modules Pyrros")
+app = typer.Typer(help="Pyrros CLI – Module Management Tool")
 console = Console()
-load_dotenv()
 
-# Constants
 BASE_URL = "https://raw.githubusercontent.com/max044/Pyrros"
-# https://raw.githubusercontent.com/max044/Pyrros/main/README.md
 VERSION = os.getenv("PYRROS_VERSION", "main")
 MANIFEST_PATH = Path(__file__).parent / "manifest.json"
 
-# Types
-class ModuleInfo(typer.models.BaseModel):
+
+@dataclass(frozen=True)
+class ModuleInfo:
+    """
+    Metadata for a Pyrros module, as defined in the manifest.
+    """
     category: str
-    path: str
     files: List[str]
 
-# --- Manifest loading ---
-def load_manifest() -> Dict[str, ModuleInfo]:
+@app.callback(invoke_without_command=True)
+def _callback(ctx: Context):
     """
-    Charge le manifeste statique des modules depuis manifest.json.
-    Format attendu (v2) :
-    {
-      "algorithms": {
-        "grpo":    { "files": [...] },
-        "another": { "files": [...] }
-      },
-      "models": {
-        "grpo":    { "files": [...] },
-        "other":   { "files": [...] }
-      }
-    }
-    On renvoie finalement un dict plat { module_name: ModuleInfo }.
+    Show help if no subcommand is provided.
+    """
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+
+def load_manifest() -> Dict[str, List[ModuleInfo]]:
+    """
+    Load the manifest.json, which is structured by category, and
+    return a flat mapping from module name to its ModuleInfo list.
+
+    Raises:
+        typer.Exit: if the manifest is missing or invalid JSON.
     """
     if not MANIFEST_PATH.exists():
-        console.print(f"[bold red]Manifeste introuvable : {MANIFEST_PATH}[/]")
+        console.print(f"[bold red]Manifest not found:[/] {MANIFEST_PATH}")
         raise typer.Exit(code=1)
 
-    raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    modules: Dict[str, ModuleInfo] = {}
+    try:
+        raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        console.print(f"[bold red]Error parsing manifest.json:[/] {e}")
+        raise typer.Exit(code=1)
 
+    modules: Dict[str, List[ModuleInfo]] = {}
     for category, entries in raw.items():
         for name, info in entries.items():
-            # Construire le chemin de destination local (si besoin)
-            path = f"pyrros/{category}/{name}"
-            modules[name] = ModuleInfo(
-                category=category,
-                path=path,
-                files=info["files"]
+            modules.setdefault(name, []).append(
+                ModuleInfo(category=category, files=info.get("files", []))
             )
-
     return modules
 
 
-# --- Installation logic ---
-def install_module(name: str, info: ModuleInfo) -> None:
-    """Télécharge les fichiers du module depuis GitHub raw."""
-    console.print(f"[bold magenta]Installation du module:[/] [yellow]{name}[/]")
-    base = f"{BASE_URL}/{VERSION}/pyrros/{info.category}/{name}"
-    for file in info.files:
-        rel = Path(info.category) / name / file
-        url = f"{base}/{file}"
-        target = Path("pyrros") / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            resp = requests.get(url)
-            resp.raise_for_status()
-            target.write_text(resp.text, encoding='utf-8')
-            console.print(f"[green]  ✓ {rel}")
-        except requests.HTTPError as e:
-            console.print(f"[bold red]Erreur HTTP {e.response.status_code} pour {url}[/]")
-    console.print(f"[bold green]Module {name} installé ![/]")
-
-# --- CLI Commands ---
-@typing_app.command()
-def add(
-    name: str = typer.Argument(
-        None, help="Nom du module à installer. Sans argument, lance le mode browse."),
-):
+def install_module(name: str, infos: List[ModuleInfo]) -> None:
     """
-    Installe un module spécifique ou ouvre l'explorateur interactif.
+    Download and write all files for the given module to pyrros/{category}/{name}/.
+
+    Args:
+        name: The module identifier.
+        infos: List of ModuleInfo instances for this module.
+    """
+    console.print(f"[bold magenta]Installing module:[/] [yellow]{name}[/]")
+    for info in infos:
+        base_url = f"{BASE_URL}/{VERSION}/registry/{info.category}/{name}"
+        for fname in info.files:
+            file_url = f"{base_url}/{fname}"
+            target = Path("pyrros") / info.category / name / fname
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                resp = requests.get(file_url, timeout=10)
+                resp.raise_for_status()
+                target.write_text(resp.text, encoding="utf-8")
+                console.print(f"[green]✓ {target}[/]")
+            except requests.RequestException as e:
+                console.print(f"[bold red]Failed to download {file_url}:[/] {e}")
+    console.print(f"[bold green]Module {name} installed successfully![/]\n")
+
+
+@app.command("add")
+def add(
+    module: Optional[str] = typer.Argument(
+        None,
+        help="Name of the module to install. Omit to browse interactively."
+    )
+) -> None:
+    """
+    Install a specific module, or enter interactive mode if no module is provided.
     """
     modules = load_manifest()
-    if name:
-        if name not in modules:
-            console.print(f"[bold red]Module inconnu: {name}[/]")
-            raise typer.Exit(code=1)
-        install_module(name, modules[name])
-    else:
-        browse(modules)
+    available = sorted(modules.keys())
 
-@typing_app.command()
-def browse(modules: Dict[str, ModuleInfo]) -> None:
+    if module:
+        if module not in modules:
+            console.print(f"[bold red]Unknown module:[/] {module}")
+            raise typer.Exit(code=1)
+        install_module(module, modules[module])
+    else:
+        choice = questionary.checkbox(
+            "Select modules to install:",
+            choices=available
+        ).ask()
+        if not choice:
+            console.print("[bold yellow]No modules selected. Exiting.[/]")
+            raise typer.Exit()
+        for name in choice:
+            install_module(name, modules[name])
+
+
+@app.command("list")
+def list_modules() -> None:
     """
-    Liste les modules disponibles et permet leur sélection.
+    List all modules available in the manifest.
     """
-    choix = questionary.checkbox(
-        "Modules disponibles:",
-        choices=list(modules.keys())
-    ).ask()
-    if not choix:
-        console.print("[bold yellow]Aucun module sélectionné.[/]")
-        raise typer.Exit()
-    for name in choix:
-        install_module(name, modules[name])
+    modules = load_manifest()
+    console.print("[bold cyan]Available modules:[/]")
+    for name in sorted(modules.keys()):
+        console.print(f"  • {name}")
+
+
+def main() -> None:
+    app()
+
 
 if __name__ == "__main__":
-    typing_app()
+    main()

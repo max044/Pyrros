@@ -26,12 +26,12 @@
 ## 🟡 DOING
 
 - [ ] **Build unit tests**
-- [ ] **Interactive CLI (arrow-based UX)**
 
 ---
 
 ## ✅ DONE
 
+- [x] **Interactive CLI (arrow-based UX)**
 - [x] **Clean and comment code**
 - [x] **GRPO recipe**
 - [x] **Loggers**
