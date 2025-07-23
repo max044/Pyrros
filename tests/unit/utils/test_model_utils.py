@@ -14,8 +14,7 @@ def test_load_pretrained_false(monkeypatch):
 
 
 @pytest.mark.unit
-@pytest.mark.skipif(pytest.importorskip("bitsandbytes", reason="bnb absent") is None,
-                    reason="bitsandbytes not installed")
+@pytest.mark.skipif(pytest.importorskip("bitsandbytes", reason="bnb absent") is None, reason="bitsandbytes not installed")
 def test_4bit_layers_present(monkeypatch):
     import bitsandbytes as bnb
     monkeypatch.setattr(
@@ -27,8 +26,7 @@ def test_4bit_layers_present(monkeypatch):
 
 
 @pytest.mark.unit
-@pytest.mark.skipif(pytest.importorskip("peft", reason="peft absent") is None,
-                    reason="peft not installed")
+@pytest.mark.skipif(pytest.importorskip("peft", reason="peft absent") is None, reason="peft not installed")
 def test_qlora_wrap(monkeypatch):
     from peft import PeftModel
     monkeypatch.setattr(

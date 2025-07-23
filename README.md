@@ -25,8 +25,30 @@ It combines:
 uv init
 uv venv --python 3.10
 source .venv/bin/activate
-uv add Pyrros or uv add "Pyrros @ git+https://github.com/max044/Pyrros.git"
 ```
+```bash
+uv add Pyrros
+```
+or
+```bash
+uv add "Pyrros @ git+https://github.com/max044/Pyrros.git"
+```
+
+## Usage
+```bash
+pyrros --help
+```
+
+This will show you the available commands and options.
+
+## 🧪 Example: GRPO + QLoRA on Qwen
+
+```bash
+pyrros add grpo
+torchrun --nproc_per_node=2 train_grpo_qwen.py
+```
+
+# Development
 
 ## 🛠️ Installation for development
 
