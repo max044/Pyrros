@@ -16,6 +16,7 @@ load_dotenv()
 
 # Constants
 BASE_URL = "https://raw.githubusercontent.com/max044/Pyrros"
+# https://raw.githubusercontent.com/max044/Pyrros/main/README.md
 VERSION = os.getenv("PYRROS_VERSION", "main")
 MANIFEST_PATH = Path(__file__).parent / "manifest.json"
 
@@ -27,13 +28,40 @@ class ModuleInfo(typer.models.BaseModel):
 
 # --- Manifest loading ---
 def load_manifest() -> Dict[str, ModuleInfo]:
-    """Charge le manifeste statique des modules depuis manifest.json."""
+    """
+    Charge le manifeste statique des modules depuis manifest.json.
+    Format attendu (v2) :
+    {
+      "algorithms": {
+        "grpo":    { "files": [...] },
+        "another": { "files": [...] }
+      },
+      "models": {
+        "grpo":    { "files": [...] },
+        "other":   { "files": [...] }
+      }
+    }
+    On renvoie finalement un dict plat { module_name: ModuleInfo }.
+    """
     if not MANIFEST_PATH.exists():
-        console.print(f"[bold red]Manifeste introuvable: {MANIFEST_PATH}[/]")
+        console.print(f"[bold red]Manifeste introuvable : {MANIFEST_PATH}[/]")
         raise typer.Exit(code=1)
-    data = json.loads(MANIFEST_PATH.read_text(encoding='utf-8'))
-    modules = {name: ModuleInfo(**info) for name, info in data.items()}
+
+    raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    modules: Dict[str, ModuleInfo] = {}
+
+    for category, entries in raw.items():
+        for name, info in entries.items():
+            # Construire le chemin de destination local (si besoin)
+            path = f"pyrros/{category}/{name}"
+            modules[name] = ModuleInfo(
+                category=category,
+                path=path,
+                files=info["files"]
+            )
+
     return modules
+
 
 # --- Installation logic ---
 def install_module(name: str, info: ModuleInfo) -> None:
