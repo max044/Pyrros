@@ -211,3 +211,4 @@ tensorboard_logs/
 *logs*
 .beamignore
 .DS_Store
+.env

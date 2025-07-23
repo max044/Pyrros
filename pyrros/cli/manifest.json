@@ -1,0 +1,8 @@
+{
+  "grpo": {
+    "category": "models",
+    "files": [
+      "grpo_model.py"
+    ]
+  }
+}

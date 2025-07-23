@@ -1,21 +1,19 @@
 import json
 from pathlib import Path
 
-# Configuration
-REPO_ROOT = Path(__file__).parent.parent
-REGISTRY_DIR = REPO_ROOT / 'registry'
-OUTPUT_MANIFEST = REPO_ROOT / 'pyrros' / 'cli' / 'manifest.json'
+# ----- Configuration -----
+# Ce script se situe dans pyrros/cli/generate_manifest.py
+CLI_DIR = Path(__file__).parent
+PROJECT_ROOT = CLI_DIR.parent.parent  # remonte à la racine du repo
+REGISTRY_DIR = PROJECT_ROOT / 'registry'
+OUTPUT_MANIFEST = CLI_DIR / 'manifest.json'
 CATEGORIES = ['algorithms', 'models']
 
 
 def scan_modules() -> dict[str, dict]:
     """
-    Parcours les dossiers registry/{category} et génère la structure du manifeste.
-    Retourne un dict de la forme:
-    {
-      "module_name": {"category": ..., "files": [...]},
-      ...
-    }
+    Parcourt registry/{category} pour générer le manifeste.
+    Renvoie un dict {module_name: {'category':..., 'files':[...]}}
     """
     manifest: dict[str, dict] = {}
     for category in CATEGORIES:
@@ -26,14 +24,12 @@ def scan_modules() -> dict[str, dict]:
             if not module_dir.is_dir():
                 continue
             module_name = module_dir.name
-            # Collecter tous les fichiers .py (sans __init__.py)
-            files = []
+            files: list[str] = []
             for py_file in module_dir.rglob('*.py'):
                 if py_file.name == '__init__.py':
                     continue
-                # chemin relatif au dossier module
-                rel_path = py_file.relative_to(module_dir)
-                files.append(str(rel_path))
+                rel = py_file.relative_to(module_dir)
+                files.append(str(rel))
             if files:
                 manifest[module_name] = {
                     'category': category,
@@ -43,7 +39,7 @@ def scan_modules() -> dict[str, dict]:
 
 
 def write_manifest(data: dict[str, dict]) -> None:
-    """Écrit le JSON formaté dans OUTPUT_MANIFEST."""
+    """Écrit le JSON indenté dans le fichier OUTPUT_MANIFEST."""
     OUTPUT_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_MANIFEST.open('w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
