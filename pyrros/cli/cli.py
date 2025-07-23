@@ -1,182 +1,119 @@
-from rich.console import Console
+import os
+import json
+from pathlib import Path
+from typing import List, Dict
+
+import typer
 import questionary
-from sys import argv, exit
-from enum import Enum
-from requests import get
+import requests
+from rich.console import Console
 from dotenv import load_dotenv
-from os import getenv
 
-class CLIMode(Enum):
-    ADD = 1
-    BROWSE = 2
+# Init Typer app
+typing_app = typer.Typer(help="CLI de gestion des modules Pyrros")
+console = Console()
+load_dotenv()
 
-class CLI():
-    def __init__(self):
-        self.mode = None
-        self.target_module = None
-        self.console = Console()
-        self.choices = []
-        self.urls = [
-            "https://api.github.com/repos/max044/Pyrros/contents/pyrros/algorithms",
-            "https://api.github.com/repos/max044/Pyrros/contents/pyrros/models"
-        ]
-        load_dotenv()
+# Constants
+BASE_URL = "https://raw.githubusercontent.com/max044/Pyrros"
+# https://raw.githubusercontent.com/max044/Pyrros/main/README.md
+VERSION = os.getenv("PYRROS_VERSION", "main")
+MANIFEST_PATH = Path(__file__).parent / "manifest.json"
 
-    def fetch_available_modules(self) -> list[str]:
-        token = getenv("GITHUB_TOKEN")
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
+# Types
+class ModuleInfo(typer.models.BaseModel):
+    category: str
+    path: str
+    files: List[str]
 
-        sets = []
-        for url in self.urls:
-            response = get(url, headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                names = set(item['name'] for item in data if item['type'] == 'dir')
-                sets.append(names)
-            else:
-                self.console.print(f"[bold red]Error fetching available modules from {url}.[/]")
-                exit(1)
-        if sets:
-            common = set.intersection(*sets)
-            return sorted(common)
-        return []
+# --- Manifest loading ---
+def load_manifest() -> Dict[str, ModuleInfo]:
+    """
+    Charge le manifeste statique des modules depuis manifest.json.
+    Format attendu (v2) :
+    {
+      "algorithms": {
+        "grpo":    { "files": [...] },
+        "another": { "files": [...] }
+      },
+      "models": {
+        "grpo":    { "files": [...] },
+        "other":   { "files": [...] }
+      }
+    }
+    On renvoie finalement un dict plat { module_name: ModuleInfo }.
+    """
+    if not MANIFEST_PATH.exists():
+        console.print(f"[bold red]Manifeste introuvable : {MANIFEST_PATH}[/]")
+        raise typer.Exit(code=1)
 
-    def fetch_content(self, module_name: str) -> dict:
-        import base64
-        from pathlib import Path
-        token = getenv("GITHUB_TOKEN")
-        headers = {"Authorization": f"token {token}"} if token else {}
-        base_urls = {
-            "algorithms": f"https://api.github.com/repos/max044/Pyrros/contents/pyrros/algorithms/{module_name}",
-            "models": f"https://api.github.com/repos/max044/Pyrros/contents/pyrros/models/{module_name}"
-        }
-        results = {"algorithms": [], "models": []}
+    raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    modules: Dict[str, ModuleInfo] = {}
 
-        def clone_folder(url, local_dir, file_list):
-            resp = get(url, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list):
-                    for item in data:
-                        if item["type"] == "file":
-                            file_url = item["url"]
-                            rel_path = item["path"].split(f"pyrros/")[-1]  # e.g. algorithms/module/file.py
-                            local_path = Path("pyrros") / rel_path
-                            local_path.parent.mkdir(parents=True, exist_ok=True)
-                            file_resp = get(file_url, headers=headers)
-                            if file_resp.status_code == 200:
-                                file_data = file_resp.json()
-                                if "content" in file_data:
-                                    content = base64.b64decode(file_data["content"]).decode("utf-8")
-                                    with open(local_path, "w") as f:
-                                        f.write(content)
-                                    file_list.append(str(local_path))
-                                else:
-                                    self.console.print(f"[bold yellow]No content in file {item['name']} for {local_dir}.[/]")
-                            else:
-                                self.console.print(f"[yellow]Failed to fetch file {item['name']} for {local_dir} (status {file_resp.status_code}).[/]")
-                        elif item["type"] == "dir":
-                            # Recursive call for subfolder
-                            clone_folder(item["url"], local_dir / item["name"], file_list)
-                else:
-                    self.console.print(f"[bold yellow]No files found at {url}.[/]")
-            elif resp.status_code == 404:
-                pass  # Not found is not an error here
-            else:
-                self.console.print(f"[bold red]Error fetching content from {url} (status {resp.status_code}).[/]")
+    for category, entries in raw.items():
+        for name, info in entries.items():
+            # Construire le chemin de destination local (si besoin)
+            path = f"pyrros/{category}/{name}"
+            modules[name] = ModuleInfo(
+                category=category,
+                path=path,
+                files=info["files"]
+            )
 
-        for key, url in base_urls.items():
-            local_dir = Path(f"pyrros/{key}/{module_name}")
-            clone_folder(url, local_dir, results[key])
-        if not results["algorithms"] and not results["models"]:
-            self.console.print(f"[bold red]Module {module_name} not found in algorithms or models![/]")
-        return results
+    return modules
 
-    def print_help(self) -> None:
-        self.console.print("[bold cyan]Usage:[/] [yellow]pyrros --help[/] [dim]or[/] [yellow]pyrros add <name>[/] [dim]to install a precise module or[/] [yellow]pyrros add[/] [dim]to browse available modules.")
-        self.console.print("[bold underline]Available commands:[/]")
-        self.console.print("  [green]--help[/]: Show this help message")
-        self.console.print("  [green]add <name>[/]: Install a specific module by name")
-        self.console.print("  [green]add[/]: Browse available things")
 
-    def check_args(self, args: list[str]) -> None:
-        if (len(args)) < 2 or (len(args) > 3):
-            self.print_help()
-            exit(1)
-        if "--help" in args:
-            self.print_help()
-            exit(0)
-        if 'add' in args:
-            if len(args) == 2:
-                self.mode = CLIMode.BROWSE
-            elif len(args) == 3:
-                self.available = self.fetch_available_modules()
-                if args[2] in self.available:
-                    self.mode = CLIMode.ADD
-                    self.target_module = args[2]
-                else:
-                    self.print_help()
-                    exit(1)
-            else:
-                self.print_help()
-                exit(1)
+# --- Installation logic ---
+def install_module(name: str, info: ModuleInfo) -> None:
+    """Télécharge les fichiers du module depuis GitHub raw."""
+    console.print(f"[bold magenta]Installation du module:[/] [yellow]{name}[/]")
+    base = f"{BASE_URL}/{VERSION}/pyrros/{info.category}/{name}"
+    for file in info.files:
+        rel = Path(info.category) / name / file
+        url = f"{base}/{file}"
+        target = Path("pyrros") / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            resp = requests.get(url)
+            resp.raise_for_status()
+            target.write_text(resp.text, encoding='utf-8')
+            console.print(f"[green]  ✓ {rel}")
+        except requests.HTTPError as e:
+            console.print(f"[bold red]Erreur HTTP {e.response.status_code} pour {url}[/]")
+    console.print(f"[bold green]Module {name} installé ![/]")
 
-    def run(self) -> None:
-        self.check_args(argv)
-        if self.mode == CLIMode.ADD:
-            if not self.target_module:
-                self.console.print("[bold red]No module specified for installation![/]")
-                return
-            self.console.print(f"[bold magenta]Installing module: {self.target_module}[/]")
-            content = self.fetch_content(self.target_module)
-            wrote = False
-            if content["algorithms"]:
-                self.console.print(f"[green]Cloned files in algorithms/{self.target_module}:\n  - " + "\n  - ".join(content["algorithms"]))
-                wrote = True
-            if content["models"]:
-                self.console.print(f"[green]Cloned files in models/{self.target_module}:\n  - " + "\n  - ".join(content["models"]))
-                wrote = True
-            if wrote:
-                self.console.print(f"[bold green]Module {self.target_module} installed successfully![/]")
-            else:
-                self.console.print(f"[bold red]Module {self.target_module} not found in algorithms or models![/]")
+# --- CLI Commands ---
+@typing_app.command()
+def add(
+    name: str = typer.Argument(
+        None, help="Nom du module à installer. Sans argument, lance le mode browse."),
+):
+    """
+    Installe un module spécifique ou ouvre l'explorateur interactif.
+    """
+    modules = load_manifest()
+    if name:
+        if name not in modules:
+            console.print(f"[bold red]Module inconnu: {name}[/]")
+            raise typer.Exit(code=1)
+        install_module(name, modules[name])
+    else:
+        browse(modules)
 
-        elif self.mode == CLIMode.BROWSE:
-            self.console.print("[bold magenta]Welcome to Pyrros CLI![/]")
-            self.choices = self.fetch_available_modules()
-            if not self.choices:
-                self.console.print("[bold red]No available modules found![/]")
-                return
-            selected = questionary.checkbox(
-                "Which modules do you want to install?",
-                choices=self.choices
-            ).ask()
-            if selected:
-                from pathlib import Path
-                Path(f"pyrros/algorithms/").mkdir(parents=True, exist_ok=True)
-                Path(f"pyrros/models/").mkdir(parents=True, exist_ok=True)
-
-                for module in selected:
-                    self.console.print(f"[bold green]Installing module:[/] [yellow]{module}[/]")
-                    content = self.fetch_content(module)
-                    wrote = False
-                    if content["algorithms"]:
-                        self.console.print(f"[green]Cloned files in algorithms/{module}:\n  - " + "\n  - ".join(content["algorithms"]))
-                        wrote = True
-                    if content["models"]:
-                        self.console.print(f"[green]Cloned files in models/{module}:\n  - " + "\n  - ".join(content["models"]))
-                        wrote = True
-                    if wrote:
-                        self.console.print(f"[bold green]Module {module} installed successfully![/]")
-                    else:
-                        self.console.print(f"[bold red]Module {module} not found in algorithms or models![/]")
-            else:
-                self.console.print("[bold red]No modules selected for installation![/]")
-                return
-            
-def main() -> None:
-    cli = CLI()
-    cli.run()
+@typing_app.command()
+def browse(modules: Dict[str, ModuleInfo]) -> None:
+    """
+    Liste les modules disponibles et permet leur sélection.
+    """
+    choix = questionary.checkbox(
+        "Modules disponibles:",
+        choices=list(modules.keys())
+    ).ask()
+    if not choix:
+        console.print("[bold yellow]Aucun module sélectionné.[/]")
+        raise typer.Exit()
+    for name in choix:
+        install_module(name, modules[name])
 
 if __name__ == "__main__":
-    main()
+    typing_app()
