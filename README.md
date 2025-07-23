@@ -2,7 +2,7 @@
 
 **Pyrros** is an open-source collection of ready-to-use training scripts and techniques for large language models (LLMs), built with efficiency, modularity, and clarity in mind.
 
-It combines:
+It will combines:
 - 🧠 Research-grade training methods (SFT, DPO, PPO, GRPO…)
 - ⚡ Memory-optimized execution (QLoRA, gradient checkpointing, Triton)
 - 🧩 A clean, Composer-powered structure you can hack or extend
@@ -16,7 +16,7 @@ It combines:
 
 ## 📦 Status
 
-> The project is under early development. First training scripts for Qwen + GRPO + QLoRA coming soon.
+> The project is under early development. Feel free to contribute or suggest features!
 
 ## Install Pyrros
 
@@ -26,10 +26,10 @@ uv init
 uv venv --python 3.10
 source .venv/bin/activate
 ```
-```bash
+<!-- ```bash
 uv add Pyrros
 ```
-or
+or -->
 ```bash
 uv add "Pyrros @ git+https://github.com/max044/Pyrros.git"
 ```
@@ -38,14 +38,13 @@ uv add "Pyrros @ git+https://github.com/max044/Pyrros.git"
 ```bash
 pyrros --help
 ```
-
 This will show you the available commands and options.
 
 ## 🧪 Example: GRPO + QLoRA on Qwen
 
 ```bash
 pyrros add grpo
-torchrun --nproc_per_node=2 train_grpo_qwen.py
+python3 train_grpo_qwen.py
 ```
 
 # Development
