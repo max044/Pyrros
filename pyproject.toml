@@ -37,6 +37,9 @@ transformers = { git = "https://github.com/huggingface/transformers" }
 [project.optional-dependencies]
 dev = ["pytest", "peft", "bitsandbytes"]
 
+[tool.setuptools.package-data]
+"pyrros.cli" = ["manifest.json"]
+
 [project.scripts]
 pyrros = "pyrros.cli.cli:main"
 

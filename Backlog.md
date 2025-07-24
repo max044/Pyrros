@@ -4,7 +4,6 @@
 
 ## 🔜 TODO
 
-- [ ] **Implement `trainer/sft.py`**
 - [ ] **Verify all features**
       LoRA, gradient accumulation, eval, early stopping, etc.
 
@@ -14,12 +13,15 @@
 - [ ] **Improve `load_ref_model`**
       Handle LoRA/full model cases. Ensure compatibility with FSDP and safe eval mode.
 
+- [ ] **Add `mu` for multiple iterations in grpo algo**
+
 - [ ] **Benchmark against Hugging Face and unsloth Trainers**
       Compare speed, memory, accuracy on GSM8K. Log results for blog & README.
 
-
 - [ ] **Generate Qwen3 recipes for some config**
       1.5B → 4B → 7B with presets: 1×A100, 2×A100, etc.
+
+- [ ] **Implement `trainer/sft.py`**
 
 ---
 
