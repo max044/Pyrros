@@ -23,32 +23,20 @@ MANIFEST_PATH = Path(__file__).parent / "manifest.json"
 
 @dataclass(frozen=True)
 class ModuleInfo:
-    """
-    Metadata for a Pyrros module, as defined in the manifest.
-    """
     category: str
     files: List[str]
 
+
 @app.callback(invoke_without_command=True)
 def _callback(ctx: Context):
-    """
-    Show help if no subcommand is provided.
-    """
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
-def load_manifest() -> Dict[str, List[ModuleInfo]]:
-    """
-    Load the manifest.json, which is structured by category, and
-    return a flat mapping from module name to its ModuleInfo list.
 
-    Raises:
-        typer.Exit: if the manifest is missing or invalid JSON.
-    """
+def load_manifest() -> Dict[str, List[ModuleInfo]]:
     if not MANIFEST_PATH.exists():
         console.print(f"[bold red]Manifest not found:[/] {MANIFEST_PATH}")
         raise typer.Exit(code=1)
-
     try:
         raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
@@ -65,13 +53,6 @@ def load_manifest() -> Dict[str, List[ModuleInfo]]:
 
 
 def install_module(name: str, infos: List[ModuleInfo]) -> None:
-    """
-    Download and write all files for the given module to pyrros/{category}/{name}/.
-
-    Args:
-        name: The module identifier.
-        infos: List of ModuleInfo instances for this module.
-    """
     console.print(f"[bold magenta]Installing module:[/] [yellow]{name}[/]")
     for info in infos:
         base_url = f"{BASE_URL}/{VERSION}/registry/{info.category}/{name}"
@@ -97,26 +78,44 @@ def add(
     )
 ) -> None:
     """
-    Install a specific module, or enter interactive mode if no module is provided.
+    Install a specific module, or enter interactive mode if none is provided.
     """
     modules = load_manifest()
     available = sorted(modules.keys())
 
+    # determine selection
     if module:
-        if module not in modules:
-            console.print(f"[bold red]Unknown module:[/] {module}")
-            raise typer.Exit(code=1)
-        install_module(module, modules[module])
+        selection = [module]
     else:
-        choice = questionary.checkbox(
+        selection = questionary.checkbox(
             "Select modules to install:",
             choices=available
-        ).ask()
-        if not choice:
-            console.print("[bold yellow]No modules selected. Exiting.[/]")
-            raise typer.Exit()
-        for name in choice:
-            install_module(name, modules[name])
+        ).ask() or []
+    if not selection:
+        console.print("[bold yellow]No modules selected. Exiting.[/]")
+        raise typer.Exit()
+
+    for name in selection:
+        if name not in modules:
+            console.print(f"[bold red]Unknown module:[/] {name}")
+            raise typer.Exit(code=1)
+
+        infos = modules[name]
+        # check for existing installation paths
+        existing = [
+            Path("pyrros") / info.category / name
+            for info in infos
+            if (Path("pyrros") / info.category / name).exists()
+        ]
+        if existing:
+            dirs = ", ".join(str(p) for p in existing)
+            confirm = questionary.confirm(
+                f"Module '{name}' already installed at {dirs}. Overwrite?"
+            ).ask()
+            if not confirm:
+                console.print(f"[yellow]Skipping {name}[/]")
+                continue
+        install_module(name, infos)
 
 
 @app.command("list")
