@@ -58,7 +58,7 @@ def install_module(name: str, infos: List[ModuleInfo]) -> None:
         base_url = f"{BASE_URL}/{VERSION}/registry/{info.category}/{name}"
         for fname in info.files:
             file_url = f"{base_url}/{fname}"
-            target = Path("pyrros") / info.category / name / fname
+            target = Path("registry") / info.category / name / fname
             target.parent.mkdir(parents=True, exist_ok=True)
             try:
                 resp = requests.get(file_url, timeout=10)
@@ -89,7 +89,10 @@ def add(
     else:
         selection = questionary.checkbox(
             "Select modules to install:",
-            choices=available
+            choices=available,
+            use_arrow_keys=True,
+            instruction="Use space to select, enter to confirm.",
+            validate=lambda x: len(x) > 0 or "You must select at least one module."
         ).ask() or []
     if not selection:
         console.print("[bold yellow]No modules selected. Exiting.[/]")
@@ -103,9 +106,9 @@ def add(
         infos = modules[name]
         # check for existing installation paths
         existing = [
-            Path("pyrros") / info.category / name
+            Path("registry") / info.category / name
             for info in infos
-            if (Path("pyrros") / info.category / name).exists()
+            if (Path("registry") / info.category / name).exists()
         ]
         if existing:
             dirs = ", ".join(str(p) for p in existing)

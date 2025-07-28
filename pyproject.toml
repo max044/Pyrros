@@ -26,9 +26,9 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-# -> on inclut uniquement le package 'pyrros' et ses sous-packages
+# -> we include only the 'pyrros' package and its sub-packages
 include = ["pyrros*"]
-# -> on exclut 'recipes' qui contient des scripts, pas du code importable
+# -> we exclude 'recipes' which contains scripts, not importable code
 exclude = ["recipes*", "registry*", "tests*"]
 
 [tool.uv.sources]

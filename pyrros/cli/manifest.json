@@ -13,5 +13,20 @@
         "grpo_model.py"
       ]
     }
+  },
+  "utils": {
+    "grpo": {
+      "files": [
+        "dataset_utils.py"
+      ]
+    }
+  },
+  "recipes": {
+    "grpo": {
+      "files": [
+        "rewards.py",
+        "train_grpo.py"
+      ]
+    }
   }
 }
