@@ -124,9 +124,11 @@ def add(
         infos = modules[name]
         # check for existing installation paths
         existing = [
-            Path("registry") / info.category / name
+            Path("recipes") / name if info.category == "recipes"
+            else Path("registry") / info.category / name
             for info in infos
-            if (Path("registry") / info.category / name).exists()
+            if (Path("recipes") / name if info.category == "recipes"
+                else Path("registry") / info.category / name).exists()
         ]
         if existing:
             dirs = ", ".join(str(p) for p in existing)
