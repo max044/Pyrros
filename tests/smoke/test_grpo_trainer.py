@@ -89,7 +89,7 @@ def test_grpo_smoke(device: str):
         pretrained=False,
         dtype=torch.float32,
     )
-    model = GRPOModel(model=model, tokenizer=tokenizer)
+    model = GRPOModel(model=model, tokenizer=tokenizer, num_iterations=2)
 
     # (b) DataLoader factice
     ds = FakePromptDataset(length=4)

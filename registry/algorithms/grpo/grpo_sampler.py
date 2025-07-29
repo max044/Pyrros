@@ -38,9 +38,9 @@ class GRPOSampler(Algorithm):
             rewards = self._compute_rewards(texts, seq_ids, inputs, logger)
             advantages = self._compute_advantages(rewards)
             attention_mask = seq_ids != self.tokenizer.pad_token_id
-            logp_ref = self._compute_logprobs_ref(seq_ids, attention_mask, state)
+            logp_ref, logp_old = self._compute_logprobs(seq_ids, attention_mask, state)
             # TODO: compute logprobs for old model if num_iterations > 1
-            state.batch = self._build_state_batch(inputs, seq_ids, logp_ref, advantages, mask)
+            state.batch = self._build_state_batch(inputs, seq_ids, logp_ref, logp_old, advantages, mask)
             self._cached_batch = state.batch
         else:
             # reuse last generated batch
@@ -126,24 +126,28 @@ class GRPOSampler(Algorithm):
         mean, std = rewards.mean(), rewards.std()
         return (rewards - mean) / (std + eps)
 
-    def _compute_logprobs_ref(
+    def _compute_logprobs(
         self,
         seq_ids: torch.Tensor,
         mask: torch.Tensor,
         state: State,
     ) -> torch.Tensor:
         ref_model = state.ref_model
+        current_model = state.model
         with torch.no_grad():
             seq_ids = seq_ids.to(ref_model.model.device)
             mask = mask.to(ref_model.model.device)
-            logp = ref_model.compute_log_probs(seq_ids, mask)
-        return logp
+            logp_ref = ref_model.compute_log_probs(seq_ids, mask)
+            logp_old = current_model.compute_log_probs(seq_ids, mask)
+
+        return logp_ref, logp_old
 
     def _build_state_batch(
         self,
         inputs: dict,
         seq_ids: torch.Tensor,
         logp_ref: torch.Tensor,
+        logp_old: torch.Tensor,
         advantages: torch.Tensor,
         mask: torch.Tensor,
     ) -> dict:
@@ -153,6 +157,7 @@ class GRPOSampler(Algorithm):
             "attention_mask": attention_mask,
             "sequence_ids": seq_ids,
             "logprobs_ref": logp_ref,
+            "logprobs_old": logp_old,
             "advantages": advantages.to(inputs["input_ids"].device),
             "completion_mask": mask,
         }

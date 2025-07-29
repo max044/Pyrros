@@ -41,7 +41,7 @@ DEVICE          = "gpu" if torch.cuda.is_available() else "mps" if torch.backend
 
 # — model —
 model, tokenizer = load_model(WEIGHT_PATH, pretrained=True, dtype=torch.float32)
-model = GRPOModel(model=model, tokenizer=tokenizer)
+model = GRPOModel(model=model, tokenizer=tokenizer, num_iterations=MU)
 
 # — dataloader —
 dataloader = get_grpo_dataloader(

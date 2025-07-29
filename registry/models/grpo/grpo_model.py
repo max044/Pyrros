@@ -8,13 +8,17 @@ class GRPOModel(HuggingFaceModel):
     Composer wrapper for a causal LM supporting GRPO loss and KL penalty.
     """
 
-    def __init__(self, model, tokenizer, epsilon=0.2, beta=0.02):
+    def __init__(self, model, tokenizer, num_iterations, epsilon=0.2, beta=0.02):
         """
         Initialize with clipping epsilon and KL weight beta.
         """
 
         super().__init__(model=model, tokenizer=tokenizer)
-        self.epsilon, self.beta = epsilon, beta
+        
+        self._mu_iterations = 0
+        self.num_iterations = num_iterations
+        self.epsilon = epsilon
+        self.beta = beta
 
     def forward(self, batch):
         """
@@ -24,10 +28,15 @@ class GRPOModel(HuggingFaceModel):
             Tensor of shape (batch_size * G, sequence_length).
         """
 
-        sequence_ids = batch["sequence_ids"]
-        attention_mask = batch["attention_mask"]
-        log_probs = self.compute_log_probs(sequence_ids, attention_mask)
-        return log_probs
+        if self._mu_iterations == 0:
+            # First iteration, compute log-probs
+            sequence_ids = batch["sequence_ids"]
+            attention_mask = batch["attention_mask"]
+            log_probs = self.compute_log_probs(sequence_ids, attention_mask)
+            return log_probs
+        else:
+            # Reuse cached log-probs from previous iteration
+            return batch["logprobs_old"]
 
     def loss(self, outputs, batch):
         """
@@ -48,7 +57,14 @@ class GRPOModel(HuggingFaceModel):
 
         kl = self._approximate_kl_divergence(log_probs, logprobs_ref, completion_mask)
 
-        logprobs_old = log_probs.detach()
+        if self.num_iterations > 1:
+            # For multiple iterations, we use the cached log-probs from the previous iteration
+            logprobs_old = batch["logprobs_old"]
+        else:
+            # For single iteration, we use the current log-probs as old log-probs
+            # This is the default behavior for the first iteration.
+            # In practice, this would be replaced with the cached log-probs from the previous iteration
+            logprobs_old = log_probs.detach()
 
         # Compute the loss
         ratio = (log_probs - logprobs_old).exp()
@@ -64,6 +80,8 @@ class GRPOModel(HuggingFaceModel):
             )
         else:
             loss = loss.mean(axis=-1)
+
+        self._mu_iterations = (self._mu_iterations + 1) % self.num_iterations
 
         return loss
 

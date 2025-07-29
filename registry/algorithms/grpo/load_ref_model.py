@@ -34,7 +34,7 @@ class LoadRefModel(Algorithm):
             pretrained=True,
             dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
         )
-        ref_model = GRPOModel(model=ref_model, tokenizer=tokenizer)
+        ref_model = GRPOModel(model=ref_model, tokenizer=tokenizer, num_iterations=1)
         ref_model.eval()
         ref_model.requires_grad_(False)
         device = "cuda" if self.device == "gpu" else self.device
