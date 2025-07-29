@@ -11,16 +11,18 @@ CATEGORIES      = ['algorithms', 'models', 'utils']
 
 def scan_registry() -> dict[str, dict]:
     """
-    Parcourt registry/{category} et renvoie la structure :
+    Renvoie :
     {
       "algorithms": {
-        "module1": {"files": [...]},
-        ...
+        "grpo": { "files": [...] }
+      },
+      "models": {
+        "grpo": { "files": [...] }
       },
       ...
     }
     """
-    manifest: dict[str, dict] = {}
+    registry_manifest: dict[str, dict] = {}
     for category in CATEGORIES:
         cat_dir = REGISTRY_DIR / category
         if not cat_dir.exists():
@@ -37,15 +39,15 @@ def scan_registry() -> dict[str, dict]:
                 files.append(str(rel))
             if files:
                 modules[module_dir.name] = {"files": sorted(files)}
-        manifest[category] = modules
-    return manifest
+        if modules:
+            registry_manifest[category] = modules
+    return registry_manifest
 
 def scan_recipes() -> dict[str, dict]:
     """
-    Parcourt recipes/<recipe_name> et renvoie :
+    Renvoie :
     {
-      "<recipe_name>": {"files": [...paths relative to recipe dir...]},
-      ...
+      "grpo": { "files": [...] }
     }
     """
     recipes_manifest: dict[str, dict] = {}
@@ -57,8 +59,6 @@ def scan_recipes() -> dict[str, dict]:
             continue
         files = []
         for py in recipe_dir.rglob("*.py"):
-            # Si vous voulez exclure __init__.py, décommentez la ligne ci-dessous
-            # if py.name == "__init__.py": continue
             rel = py.relative_to(recipe_dir)
             files.append(str(rel))
         if files:
@@ -69,14 +69,13 @@ def write_manifest(data: dict[str, dict]) -> None:
     OUTPUT_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_MANIFEST.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    total_modules = sum(len(mods) for mods in data.values())
-    print(f"Manifest généré: {OUTPUT_MANIFEST} ({total_modules} modules)")
+    print(f"Manifest généré: {OUTPUT_MANIFEST} "
+          f"({len(data.get('registry', {}))} catégories registry, "
+          f"{len(data.get('recipes', {}))} recettes)")
 
 if __name__ == "__main__":
-    manifest = {}
-    # 1) modules registry
-    manifest.update(scan_registry())
-    # 2) modules recipes
-    manifest["recipes"] = scan_recipes()
-    # 3) write to disk
+    manifest = {
+        "registry": scan_registry(),
+        "recipes": scan_recipes()
+    }
     write_manifest(manifest)

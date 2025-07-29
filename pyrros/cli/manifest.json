@@ -1,24 +1,26 @@
 {
-  "algorithms": {
-    "grpo": {
-      "files": [
-        "grpo_sampler.py",
-        "load_ref_model.py"
-      ]
-    }
-  },
-  "models": {
-    "grpo": {
-      "files": [
-        "grpo_model.py"
-      ]
-    }
-  },
-  "utils": {
-    "grpo": {
-      "files": [
-        "dataset_utils.py"
-      ]
+  "registry": {
+    "algorithms": {
+      "grpo": {
+        "files": [
+          "grpo_sampler.py",
+          "load_ref_model.py"
+        ]
+      }
+    },
+    "models": {
+      "grpo": {
+        "files": [
+          "grpo_model.py"
+        ]
+      }
+    },
+    "utils": {
+      "grpo": {
+        "files": [
+          "dataset_utils.py"
+        ]
+      }
     }
   },
   "recipes": {

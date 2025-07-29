@@ -44,21 +44,38 @@ def load_manifest() -> Dict[str, List[ModuleInfo]]:
         raise typer.Exit(code=1)
 
     modules: Dict[str, List[ModuleInfo]] = {}
-    for category, entries in raw.items():
-        for name, info in entries.items():
+
+    # Charger les modules de registry (structure imbriquée)
+    for category, cat_entries in raw.get("registry", {}).items():
+        for name, info in cat_entries.items():
             modules.setdefault(name, []).append(
                 ModuleInfo(category=category, files=info.get("files", []))
             )
+
+    # Charger les modules de recipes (plat)
+    for name, info in raw.get("recipes", {}).items():
+        modules.setdefault(name, []).append(
+            ModuleInfo(category="recipes", files=info.get("files", []))
+        )
+
     return modules
+
 
 
 def install_module(name: str, infos: List[ModuleInfo]) -> None:
     console.print(f"[bold magenta]Installing module:[/] [yellow]{name}[/]")
     for info in infos:
-        base_url = f"{BASE_URL}/{VERSION}/registry/{info.category}/{name}"
+        # URL sur GitHub
+        if info.category == "recipes":
+            base_url = f"{BASE_URL}/{VERSION}/recipes/{name}"
+            target_base = Path("recipes") / name
+        else:
+            base_url = f"{BASE_URL}/{VERSION}/registry/{info.category}/{name}"
+            target_base = Path("registry") / info.category / name
+
         for fname in info.files:
             file_url = f"{base_url}/{fname}"
-            target = Path("registry") / info.category / name / fname
+            target = target_base / fname
             target.parent.mkdir(parents=True, exist_ok=True)
             try:
                 resp = requests.get(file_url, timeout=10)
@@ -67,6 +84,7 @@ def install_module(name: str, infos: List[ModuleInfo]) -> None:
                 console.print(f"[green]✓ {target}[/]")
             except requests.RequestException as e:
                 console.print(f"[bold red]Failed to download {file_url}:[/] {e}")
+
     console.print(f"[bold green]Module {name} installed successfully![/]\n")
 
 
