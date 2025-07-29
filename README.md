@@ -26,10 +26,7 @@ uv init
 uv venv --python 3.10
 source .venv/bin/activate
 ```
-<!-- ```bash
-uv add Pyrros
-```
-or -->
+
 ```bash
 uv add "Pyrros @ git+https://github.com/max044/Pyrros.git"
 ```
@@ -44,7 +41,7 @@ This will show you the available commands and options.
 
 ```bash
 pyrros add grpo
-python3 train_grpo_qwen.py
+uv run -m recipes.grpo.train_grpo
 ```
 
 # Development
