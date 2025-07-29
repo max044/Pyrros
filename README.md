@@ -6,11 +6,11 @@ It will combines:
 - 🧠 Research-grade training methods (SFT, DPO, PPO, GRPO…)
 - ⚡ Memory-optimized execution (QLoRA, gradient checkpointing, Triton)
 - 🧩 A clean, Composer-powered structure you can hack or extend
-- 🖥️ Easy multi-GPU support, Lightning-style
+- 🖥️ Multi-GPU support
 
 ## 🚀 Goals
 
-- Make training LLMs accessible, reproducible, and fast.
+- Make LLMs training accessible, hackable, and fast.
 - Provide production-ready and research-friendly codebases.
 - Stay clean, no magic, no overengineering.
 
