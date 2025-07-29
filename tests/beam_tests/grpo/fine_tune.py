@@ -108,7 +108,6 @@ def qwen_fine_tune_grpo():
         attention_mask = torch.tensor(
             [ex["attention_mask"] for ex in examples], dtype=torch.long
         )
-        labels = input_ids.clone()
 
         prompts = [ex["prompts"] for ex in examples]
         answers = [ex["answers"] for ex in examples]
@@ -116,7 +115,6 @@ def qwen_fine_tune_grpo():
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "labels": labels,
             "prompts": prompts,
             "answers": answers,
         }

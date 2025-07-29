@@ -44,7 +44,6 @@ def tiny_batch():
         "logprobs_ref": torch.zeros_like(ids[:, 1:], dtype=torch.float32),
         "advantages": torch.ones(ids.size(0), dtype=torch.float32),
         "completion_mask": torch.ones_like(ids[:, 1:], dtype=torch.bool),
-        "labels": ids,
     }
 
 

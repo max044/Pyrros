@@ -70,7 +70,6 @@ def test_apply_produces_expected_keys(sampler):
     state.batch = {
         "input_ids": torch.tensor([[1, 2]]),
         "attention_mask": torch.tensor([[1, 1]]),
-        "labels": torch.tensor([[1, 2]]),
         "prompts": [""],
         "answers": [""],
     }

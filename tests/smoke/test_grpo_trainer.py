@@ -70,7 +70,6 @@ def make_collate_fn(tokenizer: PreTrainedTokenizer, max_len: int = 32):
 
         return {
             "input_ids": enc.input_ids,
-            "labels": enc.input_ids.clone(),
             "attention_mask": enc.attention_mask,
             "prompts": ["" for _ in batch],
             "answers": ["" for _ in batch],
