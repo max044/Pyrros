@@ -11,8 +11,8 @@ _TINY_MODEL = "Qwen/Qwen3-0.6B"
 
 @pytest.mark.smoke
 def test_load_model_basic():
-    """Model loads and returns objects on CPU by default."""
-    model, tok = load_model(_TINY_MODEL, device_map={"": "cpu"})
+    """Model loads and returns objects."""
+    model, tok = load_model(_TINY_MODEL)
     assert model is not None and tok is not None
 
 
@@ -41,7 +41,6 @@ def test_load_model_4bit(bnb4bit):
     model, _ = load_model(
         _TINY_MODEL,
         bnb4bit=bnb4bit,
-        device_map={"": "cpu"},
     )
     # bitsandbytes linear layers inherit from bnb.nn.Linear4bit – sample check on first linear layer
     import bitsandbytes as bnb  # type: ignore

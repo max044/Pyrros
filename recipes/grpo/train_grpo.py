@@ -67,7 +67,7 @@ grpo_sampler = GRPOSampler(
         "top_p": 1.0,
         "top_k": 50,
         "temperature": 0.6,
-        "do_sample": False,  # TODO: set to True before push
+        "do_sample": True,
     },
 )
 

@@ -32,25 +32,34 @@ def sampler():
     return GRPOSampler(
         tokenizer=tok,
         reward_fns=[_ConstReward(1), _ConstReward(0.5)],
-        G=2
+        G=2,
+        num_iterations=2,
+        generation_kwargs={
+            "max_new_tokens": 64,
+            "max_length": 128
+        }
     )
 
 
 @pytest.mark.unit
-def test_group_advantages_unit_variance(sampler):
+def test_compute_advantages_unit_variance(sampler):
     t = torch.tensor([1., 2., 3.])
-    g = sampler._group_advantages(t)
+    g = sampler._compute_advantages(t)
     assert torch.allclose(g.mean(), torch.tensor(0.), atol=1e-6)
     assert pytest.approx(g.std().item(), rel=1e-4) == 1.0
 
 
 @pytest.mark.unit
 def test_compute_rewards_sum(sampler):
+    seq_ids = torch.tensor([[1., 2., 3.]])
+    inputs = {}
+    inputs["input_ids"] = torch.tensor([[1., 2.]])
+    inputs["prompts"] = ""
+    inputs["answers"] = ""
     summed = sampler._compute_rewards(
         completions=["a", "b"],
-        completions_ids=None,
-        prompts=None,
-        answers=None,
+        seq_ids=seq_ids,
+        inputs=inputs,
         logger=_DummyLogger(),
     )
     assert torch.allclose(summed, torch.tensor([1.5, 1.5]))

@@ -15,7 +15,6 @@ VOLUME_PATH = "./qwen-ft"
     .with_envs("HF_HUB_ENABLE_HF_TRANSFER=1"),
     memory="32Gi",
     cpu=4,
-    # secrets=["HF_TOKEN"],
     volumes=[Volume(name="qwen-ft", mount_path=VOLUME_PATH)],
 )
 def upload():

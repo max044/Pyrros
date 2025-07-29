@@ -101,12 +101,17 @@ def test_grpo_smoke(device: str):
     )
 
     # (c) Algorithme
-    load_ref_model = LoadRefModel(ref_model_name="Qwen/Qwen1.5-0.5B")
+    load_ref_model = LoadRefModel(ref_model_name="Qwen/Qwen1.5-0.5B", device=device)
 
     grpo_sampler = GRPOSampler(
         tokenizer=tokenizer,
         reward_fns=[NoReward(), NoReward()],  # stub rewards
         G=2,  # 2 samples per prompt
+        num_iterations=2,  # 2 iterations
+        generation_kwargs={
+            "max_new_tokens": 64,
+            "max_length": 128
+        }
     )
 
     # (d) Trainer Composer – 2 batches

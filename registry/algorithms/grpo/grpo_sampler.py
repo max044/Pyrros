@@ -39,6 +39,7 @@ class GRPOSampler(Algorithm):
             advantages = self._compute_advantages(rewards)
             attention_mask = seq_ids != self.tokenizer.pad_token_id
             logp_ref = self._compute_logprobs_ref(seq_ids, attention_mask, state)
+            # TODO: compute logprobs for old model if num_iterations > 1
             state.batch = self._build_state_batch(inputs, seq_ids, logp_ref, advantages, mask)
             self._cached_batch = state.batch
         else:
