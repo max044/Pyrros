@@ -28,15 +28,10 @@ class GRPOModel(HuggingFaceModel):
             Tensor of shape (batch_size * G, sequence_length).
         """
 
-        if self._mu_iterations == 0:
-            # First iteration, compute log-probs
-            sequence_ids = batch["sequence_ids"]
-            attention_mask = batch["attention_mask"]
-            log_probs = self.compute_log_probs(sequence_ids, attention_mask)
-            return log_probs
-        else:
-            # Reuse cached log-probs from previous iteration
-            return batch["logprobs_old"]
+        sequence_ids = batch["sequence_ids"]
+        attention_mask = batch["attention_mask"]
+        log_probs = self.compute_log_probs(sequence_ids, attention_mask)
+        return log_probs
 
     def loss(self, outputs, batch):
         """
@@ -134,7 +129,7 @@ class GRPOModel(HuggingFaceModel):
         )
         logits = output["logits"]
 
-        logits = logits[:, :-1].to(torch.float32)
+        logits = logits[:, :-1]
         output_ids = sequence_ids[:, 1:]
 
         log_probs = F.log_softmax(logits, dim=-1)

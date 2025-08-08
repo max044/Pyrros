@@ -4,6 +4,8 @@ from composer.core import Algorithm, Event
 from transformers import GenerationConfig, PreTrainedTokenizer
 import torch
 
+from pyrros.utils.model_utils import unwrap_ddp
+
 class GRPOSampler(Algorithm):
     """
     Composer algorithm for GRPO: generates rollouts, computes rewards,
@@ -56,17 +58,19 @@ class GRPOSampler(Algorithm):
         return {"input_ids": input_ids, "attention_mask": attention_mask, "prompts": prompts, "answers": answers}
 
     def _generate(self, inputs: dict, state: State):
-        gen_conf = GenerationConfig(
-            pad_token_id=state.model.config.pad_token_id,
-            bos_token_id=state.model.config.bos_token_id,
-            eos_token_id=state.model.config.eos_token_id,
-            return_dict_in_generate=True,
-            **self.generation_kwargs,
-        )
-        state.model.eval()
-        output = state.model.generate(
-            inputs["input_ids"], attention_mask=inputs["attention_mask"], generation_config=gen_conf
-        )
+        with unwrap_ddp(state.model) as model:
+            gen_conf = GenerationConfig(
+                pad_token_id=model.config.pad_token_id,
+                bos_token_id=model.config.bos_token_id,
+                eos_token_id=model.config.eos_token_id,
+                return_dict_in_generate=True,
+                **self.generation_kwargs,
+            )
+            model.eval()
+            with torch.no_grad():
+                output = model.generate(
+                    inputs["input_ids"], attention_mask=inputs["attention_mask"], generation_config=gen_conf
+                )
         state.model.train()
 
         seq = output.sequences
@@ -132,13 +136,15 @@ class GRPOSampler(Algorithm):
         mask: torch.Tensor,
         state: State,
     ) -> torch.Tensor:
-        ref_model = state.ref_model
-        current_model = state.model
-        with torch.no_grad():
-            seq_ids = seq_ids.to(ref_model.model.device)
-            mask = mask.to(ref_model.model.device)
-            logp_ref = ref_model.compute_log_probs(seq_ids, mask)
-            logp_old = current_model.compute_log_probs(seq_ids, mask)
+        with unwrap_ddp(state.model) as current_model:
+            ref_model = state.ref_model
+            
+            seq_ids = seq_ids.to(current_model.model.device)
+            mask = mask.to(current_model.model.device)
+
+            with torch.no_grad():
+                logp_ref = ref_model.compute_log_probs(seq_ids, mask)
+                logp_old = current_model.compute_log_probs(seq_ids, mask)
 
         return logp_ref, logp_old
 

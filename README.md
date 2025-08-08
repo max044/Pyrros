@@ -37,11 +37,18 @@ pyrros --help
 ```
 This will show you the available commands and options.
 
-## 🧪 Example: GRPO + QLoRA on Qwen
+## 🧪 Example: GRPO + QLoRA
 
 ```bash
 pyrros add grpo
 uv run -m recipes.grpo.train_grpo
+```
+
+## 🧪 Example: GRPO + QLoRA + DDP 4 GPUs
+
+```bash
+pyrros add grpo
+composer -m -n 4 recipes.grpo.train_grpo
 ```
 
 # Development

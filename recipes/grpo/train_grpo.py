@@ -2,7 +2,7 @@ import torch
 from torch import optim
 
 from composer import Trainer
-from composer.core import DataSpec
+from composer.core import DataSpec, Precision
 from composer.loggers import TensorboardLogger
 
 from pyrros.utils.model_utils import load_model
@@ -40,7 +40,7 @@ LR              = 2e-4
 DEVICE          = "gpu" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 # — model —
-model, tokenizer = load_model(WEIGHT_PATH, pretrained=True, dtype=torch.float32)
+model, tokenizer = load_model(WEIGHT_PATH, pretrained=True, dtype=torch.bfloat16, use_qlora=True, lora_r=16, lora_alpha=32)
 model = GRPOModel(model=model, tokenizer=tokenizer, num_iterations=MU)
 
 # — dataloader —
@@ -82,9 +82,10 @@ trainer = Trainer(
     max_duration="1ep",
     algorithms=[load_ref, grpo_sampler],
     device=DEVICE,
-    precision="fp32",
+    precision=Precision.AMP_BF16,
     optimizers=optim.AdamW(model.parameters(), lr=LR, weight_decay=0.01),
     save_folder="grpo_output",
+    save_interval="50ba",
     save_num_checkpoints_to_keep=5,
     loggers=[TensorboardLogger(flush_interval=1)],
 )

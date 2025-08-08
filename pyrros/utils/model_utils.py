@@ -20,6 +20,8 @@ from transformers import (
 )
 import transformers
 
+from contextlib import contextmanager
+
 # — PEFT (facultatif) --------------------------------------------------------
 try:
     from peft import LoraConfig, get_peft_model, PeftModel
@@ -175,3 +177,8 @@ def load_model(
         bnb4bit,
     )
     return model, tokenizer
+
+@contextmanager
+def unwrap_ddp(model):
+    """Yield the unwrapped model (e.g., .module if wrapped with DDP)."""
+    yield model.module if hasattr(model, "module") else model
